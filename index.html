@@ -114,6 +114,21 @@
         <div class="calendar-grid" id="calendarGrid"></div>
       </section>
 
+      <section class="panel codex-review-panel" aria-label="Codex重複チェック結果">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Codex duplicate review</p>
+            <h2>Codex重複チェック結果</h2>
+          </div>
+          <div class="legend" aria-label="判定凡例">
+            <span class="verdict ok">○</span>
+            <span class="verdict warn">△</span>
+            <span class="verdict bad">✕</span>
+          </div>
+        </div>
+        <div id="codexReviewPanel"></div>
+      </section>
+
       <section class="workspace-grid">
         <aside class="panel day-summary">
           <p class="eyebrow">Selected day</p>
@@ -144,8 +159,12 @@
             <div>
               <p class="eyebrow">Pages</p>
               <h2>該当面のPDF一覧</h2>
+              <p class="helper-text">紙面画像は必要な時だけ表示します。</p>
             </div>
-            <button class="secondary-button" id="runAnalysis" type="button">分析更新</button>
+            <div class="panel-actions">
+              <button class="ghost-button" id="togglePageImages" type="button" aria-expanded="false">紙面画像を表示</button>
+              <button class="secondary-button" id="runAnalysis" type="button">分析更新</button>
+            </div>
           </div>
           <div class="pages-grid" id="pagesGrid"></div>
         </section>

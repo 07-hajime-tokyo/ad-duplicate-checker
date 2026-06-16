@@ -33,6 +33,8 @@ const state = {
   papers: [],
   feedbacks: loadStorage(STORAGE.feedbacks, []),
   emails: loadStorage(STORAGE.emails, []),
+  dateReviews: [],
+  showPageImages: false,
   selectedDate: toDateInputValue(new Date()),
   selectedMonth: toMonthValue(new Date()),
   confirmedDate: false,
@@ -70,6 +72,8 @@ const els = {
   metricAlerts: document.querySelector("#metricAlerts"),
   paperList: document.querySelector("#paperList"),
   pagesGrid: document.querySelector("#pagesGrid"),
+  codexReviewPanel: document.querySelector("#codexReviewPanel"),
+  togglePageImages: document.querySelector("#togglePageImages"),
   runAnalysis: document.querySelector("#runAnalysis"),
   alertBox: document.querySelector("#alertBox"),
   analysisTable: document.querySelector("#analysisTable")
@@ -107,6 +111,7 @@ function bindEvents() {
     runAnalysis();
     renderAll();
   });
+  els.togglePageImages.addEventListener("click", togglePageImages);
 
   els.dropZone.addEventListener("dragover", event => {
     event.preventDefault();
@@ -198,6 +203,7 @@ async function loadSeedData() {
     const papers = (seed.papers || []).map(createSeedPaper);
     if (!papers.length) return;
     state.papers.push(...papers);
+    state.dateReviews = seed.dateReviews || [];
     const dates = papers.flatMap(paper => paper.pages.map(page => page.date)).sort();
     state.selectedDate = dates.at(-1) || state.selectedDate;
     state.selectedMonth = state.selectedDate.slice(0, 7);
@@ -238,9 +244,9 @@ function createSeedPage(paper, seedPage) {
     rotation: 0,
     autoRotated: false,
     orientation: "portrait",
-    thumbnail: createSeedThumbnail(paper.name, seedPage),
+    thumbnail: seedPage.image || seedImagePath(paper.name, seedPage.pageNumber),
     hash: "",
-    contentRatio: 0,
+    contentRatio: seedPage.contentRatio ?? 1,
     ads: []
   };
 
@@ -250,6 +256,11 @@ function createSeedPage(paper, seedPage) {
     reason: "PDFから紙面日付と広告枠を読み取り済み。広告主・訴求内容はOCRまたは担当者入力で確認"
   }));
   return page;
+}
+
+function seedImagePath(fileName, pageNumber) {
+  const stem = fileName.replace(/\.pdf$/i, "");
+  return `./sample-pages/${encodeURIComponent(stem)}_p${pageNumber}.jpg`;
 }
 
 function createSeedThumbnail(fileName, seedPage) {
@@ -402,6 +413,11 @@ function toggleFeedbackHistory() {
   els.feedbackHistory.hidden = !isHidden;
   els.toggleFeedback.setAttribute("aria-expanded", String(isHidden));
   renderFeedbackHistory();
+}
+
+function togglePageImages() {
+  state.showPageImages = !state.showPageImages;
+  renderPages();
 }
 
 function saveEmail() {
@@ -615,8 +631,46 @@ function renderAll() {
   renderEmailList();
   renderNavigation();
   renderSummary();
+  renderCodexReview();
   renderPages();
   renderAnalysis();
+}
+
+function renderCodexReview() {
+  const review = state.dateReviews.find(item => item.date === state.selectedDate);
+  if (!review) {
+    els.codexReviewPanel.innerHTML = `
+      <div class="empty-state">この日付のCodex重複判定はまだありません。PDFを確認後、判定結果をここに追加します。</div>
+    `;
+    return;
+  }
+
+  els.codexReviewPanel.innerHTML = `
+    <div class="review-summary">
+      <div class="review-summary-main">
+        <span class="verdict ${verdictClass(review.verdict)}">${review.verdict}</span>
+        <div>
+          <h3>${escapeHtml(review.title)}</h3>
+          <p>${escapeHtml(review.summary)}</p>
+        </div>
+      </div>
+      <div class="review-meta">
+        ${(review.stats || []).map(item => `<span class="tag">${escapeHtml(item)}</span>`).join("")}
+      </div>
+      <div class="review-finding-list">
+        ${(review.findings || []).map(finding => `
+          <article class="review-finding">
+            <div class="review-finding-title">
+              <span class="verdict ${verdictClass(finding.verdict)}">${finding.verdict}</span>
+              <span>${escapeHtml(finding.title)}</span>
+            </div>
+            <p>${escapeHtml(finding.reason)}</p>
+            <span class="helper-text">${escapeHtml(finding.action)}</span>
+          </article>
+        `).join("")}
+      </div>
+    </div>
+  `;
 }
 
 function renderFeedbackHistory() {
@@ -710,6 +764,7 @@ function renderSummary() {
 
 function renderPages() {
   const pages = selectedPages();
+  updatePageImageToggle(pages.length);
   if (!pages.length) {
     els.pagesGrid.innerHTML = `<div class="empty-state">この日付のPDFページはまだありません。</div>`;
     return;
@@ -718,7 +773,7 @@ function renderPages() {
   els.pagesGrid.innerHTML = pages
     .map(page => `
       <article class="page-card">
-        <img class="page-thumb ${page.orientation === "portrait" ? "is-portrait" : ""}" src="${page.thumbnail}" alt="${escapeHtml(page.pdfName)} ${page.pageNumber}ページ">
+        ${state.showPageImages ? `<img class="page-thumb ${page.orientation === "portrait" ? "is-portrait" : ""}" src="${page.thumbnail}" alt="${escapeHtml(page.pdfName)} ${page.pageNumber}ページ">` : ""}
         <div class="page-body">
           <div class="page-title-row">
             <div>
@@ -754,6 +809,13 @@ function renderPages() {
       </article>
     `)
     .join("");
+}
+
+function updatePageImageToggle(pageCount) {
+  if (!els.togglePageImages) return;
+  els.togglePageImages.disabled = pageCount === 0;
+  els.togglePageImages.setAttribute("aria-expanded", String(state.showPageImages));
+  els.togglePageImages.textContent = state.showPageImages ? "紙面画像を隠す" : "紙面画像を表示";
 }
 
 function renderAdEditor(ad, page) {

@@ -127,6 +127,14 @@ h3 {
   margin-bottom: 14px;
 }
 
+.panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .operator-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.8fr);
@@ -189,6 +197,7 @@ h3 {
 .upload-panel,
 .day-summary,
 .page-panel,
+.codex-review-panel,
 .analysis-panel {
   padding: 18px;
 }
@@ -633,6 +642,61 @@ label {
   margin: 16px 0 32px;
 }
 
+.codex-review-panel {
+  margin-top: 16px;
+}
+
+.review-summary {
+  display: grid;
+  gap: 12px;
+}
+
+.review-summary-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 12px;
+}
+
+.review-summary-main p {
+  line-height: 1.6;
+}
+
+.review-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.review-finding-list {
+  display: grid;
+  gap: 10px;
+}
+
+.review-finding {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+}
+
+.review-finding-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+}
+
+.review-finding p {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
 .legend {
   display: flex;
   gap: 8px;
@@ -749,6 +813,7 @@ tr:last-child td {
 
   .topbar,
   .local-actions,
+  .panel-actions,
   .inline-actions,
   .email-row,
   .drop-zone,
