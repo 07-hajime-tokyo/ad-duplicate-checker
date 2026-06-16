@@ -5,7 +5,8 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 
 const STORAGE = {
   feedbacks: "ad-checker-feedbacks",
-  emails: "ad-checker-emails"
+  emails: "ad-checker-emails",
+  sidebarWidths: "ad-checker-sidebar-widths"
 };
 
 const LOCAL_PREVIEW_URL =
@@ -31,11 +32,11 @@ const industryOptions = [
 ];
 
 const spreadDefinitions = [
-  { label: "1", faces: ["1面"] },
+  { label: "1", faces: ["1面", null] },
   { label: "2&3", faces: ["2面", "3面"] },
   { label: "4&5", faces: ["4面", "5面"] },
   { label: "6&7", faces: ["6面", "7面"] },
-  { label: "ラテ", faces: ["ラテ面"] }
+  { label: "ラテ", faces: ["ラテ面", null] }
 ];
 
 const state = {
@@ -48,6 +49,7 @@ const state = {
   showPageEditors: false,
   showControlSidebar: true,
   showPaperSidebar: true,
+  sidebarWidths: loadStorage(STORAGE.sidebarWidths, { control: 288, paper: 410 }),
   selectedDate: toDateInputValue(new Date()),
   selectedMonth: toMonthValue(new Date()),
   confirmedDate: false,
@@ -56,6 +58,10 @@ const state = {
 
 const els = {
   runtimeStatus: document.querySelector("#runtimeStatus"),
+  appShell: document.querySelector("#appShell"),
+  controlSidebar: document.querySelector("#controlSidebar"),
+  paperSidebar: document.querySelector("#paperSidebar"),
+  sidebarResizers: document.querySelectorAll("[data-resize-sidebar]"),
   toggleControlSidebar: document.querySelector("#toggleControlSidebar"),
   togglePaperSidebar: document.querySelector("#togglePaperSidebar"),
   localUrl: document.querySelector("#localUrl"),
@@ -100,6 +106,7 @@ init();
 function init() {
   els.localUrl.textContent = LOCAL_PREVIEW_URL;
   els.publicationDate.value = state.selectedDate;
+  applySidebarWidths();
   bindEvents();
   updateSidebarVisibility();
   renderAll();
@@ -131,6 +138,7 @@ function bindEvents() {
     renderAll();
   });
   els.togglePageEditors.addEventListener("click", togglePageEditors);
+  bindSidebarResizers();
 
   els.dropZone.addEventListener("dragover", event => {
     event.preventDefault();
@@ -499,6 +507,64 @@ function updateSidebarVisibility() {
   els.togglePaperSidebar.setAttribute("aria-expanded", String(state.showPaperSidebar));
   els.toggleControlSidebar.textContent = state.showControlSidebar ? "操作を隠す" : "操作";
   els.togglePaperSidebar.textContent = state.showPaperSidebar ? "紙面を隠す" : "紙面";
+}
+
+function bindSidebarResizers() {
+  els.sidebarResizers.forEach(handle => {
+    handle.addEventListener("pointerdown", startSidebarResize);
+    handle.addEventListener("keydown", event => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      const target = handle.dataset.resizeSidebar;
+      const direction = event.key === "ArrowRight" ? 1 : -1;
+      const multiplier = target === "paper" ? -1 : 1;
+      setSidebarWidth(target, (state.sidebarWidths[target] || defaultSidebarWidth(target)) + direction * multiplier * 16);
+    });
+  });
+}
+
+function startSidebarResize(event) {
+  event.preventDefault();
+  const target = event.currentTarget.dataset.resizeSidebar;
+  const sidebar = target === "paper" ? els.paperSidebar : els.controlSidebar;
+  const startX = event.clientX;
+  const startWidth = sidebar.getBoundingClientRect().width;
+  document.body.classList.add("is-resizing-sidebar");
+
+  const onMove = moveEvent => {
+    const delta = moveEvent.clientX - startX;
+    const width = target === "paper" ? startWidth - delta : startWidth + delta;
+    setSidebarWidth(target, width, false);
+  };
+  const onUp = () => {
+    document.body.classList.remove("is-resizing-sidebar");
+    saveStorage(STORAGE.sidebarWidths, state.sidebarWidths);
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+  };
+
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp, { once: true });
+}
+
+function applySidebarWidths() {
+  setSidebarWidth("control", state.sidebarWidths.control || 288, false);
+  setSidebarWidth("paper", state.sidebarWidths.paper || 410, false);
+}
+
+function setSidebarWidth(target, width, persist = true) {
+  const clamped = clamp(width, target === "paper" ? 320 : 240, target === "paper" ? 760 : 520);
+  state.sidebarWidths[target] = clamped;
+  document.documentElement.style.setProperty(`--${target}-sidebar-width`, `${clamped}px`);
+  if (persist) saveStorage(STORAGE.sidebarWidths, state.sidebarWidths);
+}
+
+function defaultSidebarWidth(target) {
+  return target === "paper" ? 410 : 288;
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(Number(value) || min, min), max);
 }
 
 function saveEmail() {
@@ -987,23 +1053,33 @@ function renderPages() {
 
   els.pagesGrid.innerHTML = spreadDefinitions
     .map(group => {
-      const groupPages = pages
-        .filter(page => group.faces.includes(page.faceName))
-        .sort((a, b) => group.faces.indexOf(a.faceName) - group.faces.indexOf(b.faceName));
+      const slotPages = group.faces.map(face => face ? pages.find(page => page.faceName === face) || null : null);
+      const pageCount = slotPages.filter(Boolean).length;
 
       return `
         <section class="spread-group">
           <div class="spread-heading">
             <h3>${escapeHtml(group.label)}</h3>
-            <span>${groupPages.length ? `${groupPages.length}面` : "未登録"}</span>
+            <span>${pageCount ? `${pageCount}面` : "未登録"}</span>
           </div>
           <div class="spread-pages">
-            ${groupPages.length ? groupPages.map(renderPagePreview).join("") : `<div class="spread-empty">PDF未登録</div>`}
+            ${slotPages.map((page, index) => renderSpreadSlot(page, group.faces[index])).join("")}
           </div>
         </section>
       `;
     })
     .join("");
+}
+
+function renderSpreadSlot(page, face) {
+  if (page) return renderPagePreview(page);
+  if (!face) return `<div class="spread-blank" aria-hidden="true"></div>`;
+  return `
+    <div class="spread-empty">
+      <span>${escapeHtml(face)}</span>
+      <small>未登録</small>
+    </div>
+  `;
 }
 
 function renderPagePreview(page) {

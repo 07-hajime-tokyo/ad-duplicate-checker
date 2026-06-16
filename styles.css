@@ -15,6 +15,8 @@
   --red-bg: #fde7e5;
   --blue-bg: #e8f2f8;
   --shadow: 0 10px 24px rgba(26, 38, 52, 0.08);
+  --control-sidebar-width: 288px;
+  --paper-sidebar-width: 410px;
 }
 
 * {
@@ -97,22 +99,55 @@ main,
 }
 
 .control-sidebar {
-  width: 288px;
+  width: var(--control-sidebar-width);
   min-width: 240px;
-  max-width: 420px;
-  resize: horizontal;
+  max-width: 520px;
 }
 
 .paper-sidebar {
-  width: 410px;
+  width: var(--paper-sidebar-width);
   min-width: 300px;
-  max-width: 620px;
-  resize: horizontal;
-  direction: rtl;
+  max-width: 760px;
 }
 
-.paper-sidebar > * {
-  direction: ltr;
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 20;
+  width: 12px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.sidebar-resizer::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 5px;
+  width: 2px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.sidebar-resizer:hover::after,
+.sidebar-resizer:focus-visible::after,
+.is-resizing-sidebar .sidebar-resizer::after {
+  background: var(--accent);
+}
+
+.control-resizer {
+  right: 0;
+}
+
+.paper-resizer {
+  left: 0;
+}
+
+.is-resizing-sidebar {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .control-sidebar-hidden .control-sidebar,
@@ -820,18 +855,34 @@ label {
 
 .spread-pages {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
-.spread-empty {
+.spread-empty,
+.spread-blank {
   display: grid;
   place-items: center;
-  min-height: 58px;
+  min-height: 220px;
   border: 1px dashed var(--line);
   border-radius: 8px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.spread-empty {
+  gap: 3px;
+}
+
+.spread-empty small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.spread-blank {
+  border-style: solid;
+  background: #f7f8fa;
+  opacity: 0.72;
 }
 
 .page-card {
