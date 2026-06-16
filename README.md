@@ -1,6 +1,11 @@
 # 広告重複チェッカー
 
-公明新聞の広告PDFを日別に取り込み、同日内の広告内容かぶりを確認するための試作サイトです。
+公明新聞の広告PDFを紙面日付ごとに取り込み、同日内の広告内容かぶりを確認するための試作サイトです。
+
+## 公開先
+
+- GitHub: https://github.com/07-hajime-tokyo/ad-duplicate-checker
+- Vercel: https://ad-duplicate-checker.vercel.app
 
 ## 起動方法
 
@@ -14,7 +19,7 @@ python -m http.server 4173
 
 - PDFアップロード
 - このフォルダ内PDFのデモ読込
-- 掲載日の確認
+- 紙面上の日付の確認
 - 月別、日別のPDF一覧
 - 面ごとのサムネイル表示
 - 広告主、業種、訴求内容の入力
