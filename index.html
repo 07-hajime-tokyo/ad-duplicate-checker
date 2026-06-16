@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>広告重複チェッカー</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" defer></script>
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">公明新聞 広告確認</p>
+        <h1>広告重複チェッカー</h1>
+      </div>
+      <div class="status-pill" id="runtimeStatus">PDF待機中</div>
+    </header>
+
+    <main>
+      <section class="local-strip" aria-label="ローカル確認URLとレビュー共有">
+        <div class="local-url-block">
+          <p class="eyebrow">Local preview</p>
+          <strong id="localUrl">http://localhost:4173/</strong>
+        </div>
+        <div class="local-actions">
+          <button class="ghost-button" id="copyLocalUrl" type="button">URLをコピー</button>
+          <a class="doc-link" href="./AGENTS.md">AGENTS.md</a>
+          <a class="doc-link" href="./docs/review-agent-handoff.md">レビュー引き継ぎ</a>
+        </div>
+      </section>
+
+      <section class="operator-grid" aria-label="担当者入力">
+        <article class="panel feedback-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Human feedback</p>
+              <h2>人間フィードバック</h2>
+            </div>
+            <button class="ghost-button" id="toggleFeedback" type="button" aria-expanded="false">履歴</button>
+          </div>
+          <textarea id="feedbackInput" rows="4" placeholder="例: 健康食品の体験談訴求は同日2件以上なら△。同じ紙面内は✕。"></textarea>
+          <div class="inline-actions">
+            <button class="primary-button" id="saveFeedback" type="button">登録</button>
+            <span class="helper-text" id="feedbackSaved">未登録</span>
+          </div>
+          <div class="history-panel" id="feedbackHistory" hidden></div>
+        </article>
+
+        <article class="panel mail-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Alert address</p>
+              <h2>メール登録</h2>
+            </div>
+          </div>
+          <div class="email-row">
+            <input id="emailInput" type="email" placeholder="alert@example.jp" autocomplete="email">
+            <button class="secondary-button" id="saveEmail" type="button">登録</button>
+          </div>
+          <div class="email-list" id="emailList"></div>
+          <button class="ghost-button wide" id="prepareMail" type="button">アラート文面を作成</button>
+        </article>
+      </section>
+
+      <section class="panel upload-panel" aria-label="PDF取り込み">
+        <div class="panel-heading upload-heading">
+          <div>
+            <p class="eyebrow">PDF import</p>
+            <h2>PDF取り込みと日付確認</h2>
+          </div>
+          <div class="date-controls">
+            <label>
+              紙面日付
+              <input id="publicationDate" type="date">
+            </label>
+            <button class="secondary-button" id="confirmDate" type="button">日付確認済み</button>
+          </div>
+        </div>
+
+        <div class="drop-zone" id="dropZone">
+          <input id="pdfInput" type="file" accept="application/pdf" multiple>
+          <div>
+            <strong>PDFを選択またはドロップ</strong>
+            <span>PDFの作成日やファイル名ではなく、紙面上の日付ごとに登録します。</span>
+          </div>
+        </div>
+
+        <div class="inline-actions split-actions">
+          <button class="ghost-button" id="loadFolderPdfs" type="button">このフォルダのPDFを試しに読む</button>
+          <button class="ghost-button" id="copyCodexPrompt" type="button">Codex確認メモをコピー</button>
+          <span class="helper-text" id="importStatus">取り込み待ち</span>
+        </div>
+      </section>
+
+      <section class="calendar-panel" aria-label="日付カレンダー">
+        <div class="calendar-head">
+          <button class="ghost-button icon-button" id="prevMonth" type="button" aria-label="前の月">‹</button>
+          <div>
+            <p class="eyebrow">Calendar</p>
+            <h2 id="currentMonthLabel">2026年06月</h2>
+          </div>
+          <button class="ghost-button icon-button" id="nextMonth" type="button" aria-label="次の月">›</button>
+        </div>
+        <div class="calendar-weekdays" aria-hidden="true">
+          <span>日</span>
+          <span>月</span>
+          <span>火</span>
+          <span>水</span>
+          <span>木</span>
+          <span>金</span>
+          <span>土</span>
+        </div>
+        <div class="calendar-grid" id="calendarGrid"></div>
+      </section>
+
+      <section class="workspace-grid">
+        <aside class="panel day-summary">
+          <p class="eyebrow">Selected day</p>
+          <h2 id="selectedDateTitle">日付未選択</h2>
+          <dl class="metric-list">
+            <div>
+              <dt>PDF</dt>
+              <dd id="metricPdfs">0</dd>
+            </div>
+            <div>
+              <dt>ページ</dt>
+              <dd id="metricPages">0</dd>
+            </div>
+            <div>
+              <dt>広告枠</dt>
+              <dd id="metricAds">0</dd>
+            </div>
+            <div>
+              <dt>要確認</dt>
+              <dd id="metricAlerts">0</dd>
+            </div>
+          </dl>
+          <div class="paper-list" id="paperList"></div>
+        </aside>
+
+        <section class="panel page-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Pages</p>
+              <h2>該当面のPDF一覧</h2>
+            </div>
+            <button class="secondary-button" id="runAnalysis" type="button">分析更新</button>
+          </div>
+          <div class="pages-grid" id="pagesGrid"></div>
+        </section>
+      </section>
+
+      <section class="panel analysis-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">AI review draft</p>
+            <h2>分析一覧と重複判定</h2>
+          </div>
+          <div class="legend" aria-label="判定凡例">
+            <span class="verdict ok">○</span>
+            <span class="verdict warn">△</span>
+            <span class="verdict bad">✕</span>
+          </div>
+        </div>
+        <div class="alert-box" id="alertBox"></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>判定</th>
+                <th>広告主</th>
+                <th>業種</th>
+                <th>訴求内容</th>
+                <th>掲載位置</th>
+                <th>理由</th>
+              </tr>
+            </thead>
+            <tbody id="analysisTable"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

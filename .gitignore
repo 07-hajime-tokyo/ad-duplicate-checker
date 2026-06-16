@@ -1,0 +1,6 @@
+tmp/
+.vercel/
+*.pdf
+*.log
+node_modules/
+
