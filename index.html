@@ -14,32 +14,36 @@
         <p class="eyebrow">公明新聞 広告確認</p>
         <h1>広告重複チェッカー</h1>
       </div>
-      <div class="status-pill" id="runtimeStatus">PDF待機中</div>
+      <div class="topbar-actions">
+        <button class="ghost-button" id="toggleControlSidebar" type="button" aria-expanded="true">操作</button>
+        <button class="ghost-button" id="togglePaperSidebar" type="button" aria-expanded="true">紙面</button>
+        <div class="status-pill" id="runtimeStatus">PDF待機中</div>
+      </div>
     </header>
 
-    <main>
-      <section class="local-strip" aria-label="ローカル確認URLとレビュー共有">
-        <div class="local-url-block">
-          <p class="eyebrow">Access URL</p>
-          <strong id="localUrl">http://localhost:4173/</strong>
-        </div>
-        <div class="local-actions">
-          <button class="ghost-button" id="copyLocalUrl" type="button">URLをコピー</button>
-          <a class="doc-link" href="./AGENTS.md">AGENTS.md</a>
-          <a class="doc-link" href="./docs/review-agent-handoff.md">レビュー引き継ぎ</a>
-        </div>
-      </section>
+    <main class="app-shell" id="appShell">
+      <aside class="sidebar control-sidebar" id="controlSidebar" aria-label="操作サイドバー">
+        <section class="local-strip" aria-label="ローカル確認URLとレビュー共有">
+          <div class="local-url-block">
+            <p class="eyebrow">Access URL</p>
+            <strong id="localUrl">http://localhost:4173/</strong>
+          </div>
+          <div class="local-actions">
+            <button class="ghost-button" id="copyLocalUrl" type="button">URLをコピー</button>
+            <a class="doc-link" href="./AGENTS.md">AGENTS.md</a>
+            <a class="doc-link" href="./docs/review-agent-handoff.md">レビュー引き継ぎ</a>
+          </div>
+        </section>
 
-      <section class="operator-grid" aria-label="担当者入力">
         <article class="panel feedback-panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Human feedback</p>
-              <h2>人間フィードバック</h2>
+              <p class="eyebrow">Visual feedback</p>
+              <h2>目視フィードバック</h2>
             </div>
             <button class="ghost-button" id="toggleFeedback" type="button" aria-expanded="false">履歴</button>
           </div>
-          <textarea id="feedbackInput" rows="4" placeholder="例: 健康食品の体験談訴求は同日2件以上なら△。同じ紙面内は✕。"></textarea>
+          <textarea id="feedbackInput" rows="3" placeholder="例: 健康食品の体験談訴求は同日2件以上なら△。同じ紙面内は✕。"></textarea>
           <div class="inline-actions">
             <button class="primary-button" id="saveFeedback" type="button">登録</button>
             <span class="helper-text" id="feedbackSaved">未登録</span>
@@ -61,76 +65,102 @@
           <div class="email-list" id="emailList"></div>
           <button class="ghost-button wide" id="prepareMail" type="button">アラート文面を作成</button>
         </article>
+
+        <details class="panel upload-panel" aria-label="PDF取り込み">
+          <summary>
+            <span>
+              <span class="eyebrow">PDF import</span>
+              <strong>PDF取り込み</strong>
+            </span>
+          </summary>
+          <div class="upload-body">
+            <div class="date-controls">
+              <label>
+                紙面日付
+                <input id="publicationDate" type="date">
+              </label>
+              <button class="secondary-button" id="confirmDate" type="button">日付確認済み</button>
+            </div>
+            <div class="drop-zone" id="dropZone">
+              <input id="pdfInput" type="file" accept="application/pdf" multiple>
+              <span>紙面上の日付ごとに登録します。</span>
+            </div>
+
+            <div class="sidebar-actions">
+              <button class="ghost-button" id="loadFolderPdfs" type="button">フォルダPDF</button>
+              <button class="ghost-button" id="copyCodexPrompt" type="button">確認メモ</button>
+            </div>
+            <span class="helper-text" id="importStatus">取り込み待ち</span>
+          </div>
+        </details>
+
+        <section class="calendar-panel" aria-label="日付カレンダー">
+          <div class="calendar-head">
+            <button class="ghost-button icon-button" id="prevMonth" type="button" aria-label="前の月">‹</button>
+            <div>
+              <p class="eyebrow">Calendar</p>
+              <h2 id="currentMonthLabel">2026年06月</h2>
+            </div>
+            <button class="ghost-button icon-button" id="nextMonth" type="button" aria-label="次の月">›</button>
+          </div>
+          <div class="calendar-weekdays" aria-hidden="true">
+            <span>日</span>
+            <span>月</span>
+            <span>火</span>
+            <span>水</span>
+            <span>木</span>
+            <span>金</span>
+            <span>土</span>
+          </div>
+          <div class="calendar-grid" id="calendarGrid"></div>
+        </section>
+      </aside>
+
+      <section class="main-content" aria-label="チェック結果">
+        <section class="panel codex-review-panel" aria-label="Codex重複チェック結果">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Duplicate check</p>
+              <h2>チェック結果</h2>
+            </div>
+            <div class="legend" aria-label="判定凡例">
+              <span class="verdict ok">○</span>
+              <span class="verdict warn">△</span>
+              <span class="verdict bad">✕</span>
+            </div>
+          </div>
+          <div id="codexReviewPanel"></div>
+        </section>
+
+        <section class="panel analysis-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">AI review draft</p>
+              <h2>分析一覧と重複判定</h2>
+            </div>
+            <button class="secondary-button" id="runAnalysis" type="button">分析更新</button>
+          </div>
+          <div class="alert-box" id="alertBox"></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>判定</th>
+                  <th>広告主</th>
+                  <th>業種</th>
+                  <th>訴求内容</th>
+                  <th>掲載位置</th>
+                  <th>理由</th>
+                </tr>
+              </thead>
+              <tbody id="analysisTable"></tbody>
+            </table>
+          </div>
+        </section>
       </section>
 
-      <section class="panel upload-panel" aria-label="PDF取り込み">
-        <div class="panel-heading upload-heading">
-          <div>
-            <p class="eyebrow">PDF import</p>
-            <h2>PDF取り込みと日付確認</h2>
-          </div>
-          <div class="date-controls">
-            <label>
-              紙面日付
-              <input id="publicationDate" type="date">
-            </label>
-            <button class="secondary-button" id="confirmDate" type="button">日付確認済み</button>
-          </div>
-        </div>
-
-        <div class="drop-zone" id="dropZone">
-          <input id="pdfInput" type="file" accept="application/pdf" multiple>
-          <div>
-            <strong>PDFを選択またはドロップ</strong>
-            <span>PDFの作成日やファイル名ではなく、紙面上の日付ごとに登録します。</span>
-          </div>
-        </div>
-
-        <div class="inline-actions split-actions">
-          <button class="ghost-button" id="loadFolderPdfs" type="button">このフォルダのPDFを試しに読む</button>
-          <button class="ghost-button" id="copyCodexPrompt" type="button">Codex確認メモをコピー</button>
-          <span class="helper-text" id="importStatus">取り込み待ち</span>
-        </div>
-      </section>
-
-      <section class="calendar-panel" aria-label="日付カレンダー">
-        <div class="calendar-head">
-          <button class="ghost-button icon-button" id="prevMonth" type="button" aria-label="前の月">‹</button>
-          <div>
-            <p class="eyebrow">Calendar</p>
-            <h2 id="currentMonthLabel">2026年06月</h2>
-          </div>
-          <button class="ghost-button icon-button" id="nextMonth" type="button" aria-label="次の月">›</button>
-        </div>
-        <div class="calendar-weekdays" aria-hidden="true">
-          <span>日</span>
-          <span>月</span>
-          <span>火</span>
-          <span>水</span>
-          <span>木</span>
-          <span>金</span>
-          <span>土</span>
-        </div>
-        <div class="calendar-grid" id="calendarGrid"></div>
-      </section>
-
-      <section class="panel codex-review-panel" aria-label="Codex重複チェック結果">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Codex duplicate review</p>
-            <h2>Codex重複チェック結果</h2>
-          </div>
-          <div class="legend" aria-label="判定凡例">
-            <span class="verdict ok">○</span>
-            <span class="verdict warn">△</span>
-            <span class="verdict bad">✕</span>
-          </div>
-        </div>
-        <div id="codexReviewPanel"></div>
-      </section>
-
-      <section class="workspace-grid">
-        <aside class="panel day-summary">
+      <aside class="sidebar paper-sidebar" id="paperSidebar" aria-label="紙面サイドバー">
+        <section class="panel day-summary">
           <p class="eyebrow">Selected day</p>
           <h2 id="selectedDateTitle">日付未選択</h2>
           <dl class="metric-list">
@@ -152,53 +182,29 @@
             </div>
           </dl>
           <div class="paper-list" id="paperList"></div>
-        </aside>
+          <div class="allocation-block">
+            <div class="allocation-block-head">
+              <h3>割付表参考</h3>
+              <span class="helper-text">広告主候補。代理店名が含まれる場合があります。</span>
+            </div>
+            <div class="allocation-list" id="allocationReferenceList"></div>
+          </div>
+        </section>
 
         <section class="panel page-panel">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Pages</p>
-              <h2>該当面のPDF一覧</h2>
-              <p class="helper-text">紙面画像は必要な時だけ表示します。</p>
+              <h2>紙面PDF</h2>
+              <p class="helper-text">1 / 2&3 / 4&5 / 6&7 / ラテ</p>
             </div>
             <div class="panel-actions">
-              <button class="ghost-button" id="togglePageImages" type="button" aria-expanded="false">紙面画像を表示</button>
-              <button class="secondary-button" id="runAnalysis" type="button">分析更新</button>
+              <button class="ghost-button" id="togglePageEditors" type="button" aria-expanded="false">入力欄を表示</button>
             </div>
           </div>
           <div class="pages-grid" id="pagesGrid"></div>
         </section>
-      </section>
-
-      <section class="panel analysis-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">AI review draft</p>
-            <h2>分析一覧と重複判定</h2>
-          </div>
-          <div class="legend" aria-label="判定凡例">
-            <span class="verdict ok">○</span>
-            <span class="verdict warn">△</span>
-            <span class="verdict bad">✕</span>
-          </div>
-        </div>
-        <div class="alert-box" id="alertBox"></div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>判定</th>
-                <th>広告主</th>
-                <th>業種</th>
-                <th>訴求内容</th>
-                <th>掲載位置</th>
-                <th>理由</th>
-              </tr>
-            </thead>
-            <tbody id="analysisTable"></tbody>
-          </table>
-        </div>
-      </section>
+      </aside>
     </main>
   </body>
 </html>

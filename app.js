@@ -19,6 +19,7 @@ const industryOptions = [
   "金融・保険",
   "教育",
   "出版",
+  "製紙・紙業",
   "宗教・仏事",
   "旅行・観光",
   "不動産・建設",
@@ -29,12 +30,24 @@ const industryOptions = [
   "その他"
 ];
 
+const spreadDefinitions = [
+  { label: "1", faces: ["1面"] },
+  { label: "2&3", faces: ["2面", "3面"] },
+  { label: "4&5", faces: ["4面", "5面"] },
+  { label: "6&7", faces: ["6面", "7面"] },
+  { label: "ラテ", faces: ["ラテ面"] }
+];
+
 const state = {
   papers: [],
   feedbacks: loadStorage(STORAGE.feedbacks, []),
   emails: loadStorage(STORAGE.emails, []),
   dateReviews: [],
-  showPageImages: false,
+  allocationSource: null,
+  allocationReferences: [],
+  showPageEditors: false,
+  showControlSidebar: true,
+  showPaperSidebar: true,
   selectedDate: toDateInputValue(new Date()),
   selectedMonth: toMonthValue(new Date()),
   confirmedDate: false,
@@ -43,6 +56,8 @@ const state = {
 
 const els = {
   runtimeStatus: document.querySelector("#runtimeStatus"),
+  toggleControlSidebar: document.querySelector("#toggleControlSidebar"),
+  togglePaperSidebar: document.querySelector("#togglePaperSidebar"),
   localUrl: document.querySelector("#localUrl"),
   copyLocalUrl: document.querySelector("#copyLocalUrl"),
   feedbackInput: document.querySelector("#feedbackInput"),
@@ -71,9 +86,10 @@ const els = {
   metricAds: document.querySelector("#metricAds"),
   metricAlerts: document.querySelector("#metricAlerts"),
   paperList: document.querySelector("#paperList"),
+  allocationReferenceList: document.querySelector("#allocationReferenceList"),
   pagesGrid: document.querySelector("#pagesGrid"),
   codexReviewPanel: document.querySelector("#codexReviewPanel"),
-  togglePageImages: document.querySelector("#togglePageImages"),
+  togglePageEditors: document.querySelector("#togglePageEditors"),
   runAnalysis: document.querySelector("#runAnalysis"),
   alertBox: document.querySelector("#alertBox"),
   analysisTable: document.querySelector("#analysisTable")
@@ -85,11 +101,14 @@ function init() {
   els.localUrl.textContent = LOCAL_PREVIEW_URL;
   els.publicationDate.value = state.selectedDate;
   bindEvents();
+  updateSidebarVisibility();
   renderAll();
   loadSeedData();
 }
 
 function bindEvents() {
+  els.toggleControlSidebar.addEventListener("click", toggleControlSidebar);
+  els.togglePaperSidebar.addEventListener("click", togglePaperSidebar);
   els.copyLocalUrl.addEventListener("click", copyLocalUrl);
   els.saveFeedback.addEventListener("click", saveFeedback);
   els.toggleFeedback.addEventListener("click", toggleFeedbackHistory);
@@ -111,7 +130,7 @@ function bindEvents() {
     runAnalysis();
     renderAll();
   });
-  els.togglePageImages.addEventListener("click", togglePageImages);
+  els.togglePageEditors.addEventListener("click", togglePageEditors);
 
   els.dropZone.addEventListener("dragover", event => {
     event.preventDefault();
@@ -200,6 +219,8 @@ async function loadSeedData() {
     const response = await fetch("./seed-data.json", { cache: "no-store" });
     if (!response.ok) return;
     const seed = await response.json();
+    state.allocationSource = seed.allocationSource || null;
+    state.allocationReferences = seed.allocationReferences || [];
     const papers = (seed.papers || []).map(createSeedPaper);
     if (!papers.length) return;
     state.papers.push(...papers);
@@ -209,6 +230,7 @@ async function loadSeedData() {
     state.selectedMonth = state.selectedDate.slice(0, 7);
     els.publicationDate.value = state.selectedDate;
     setBusy(false, "読み取り済みPDFデータを表示中");
+    runAnalysis();
     renderAll();
   } catch {
     // 初期データは補助表示なので、読めなくても通常利用を継続する。
@@ -250,12 +272,52 @@ function createSeedPage(paper, seedPage) {
     ads: []
   };
 
-  page.ads = (seedPage.slots || ["記事下メイン"]).map(slot => ({
-    ...createAd(page, slot),
-    verdict: "△",
-    reason: "PDFから紙面日付と広告枠を読み取り済み。広告主・訴求内容はOCRまたは担当者入力で確認"
-  }));
+  const adDefinitions = seedPage.ads || (seedPage.slots || ["記事下メイン"]).map(slot => ({ slot }));
+  page.ads = adDefinitions.map(definition => createSeedAd(page, definition));
   return page;
+}
+
+function createSeedAd(page, definition) {
+  const adDefinition = typeof definition === "string" ? { slot: definition } : definition;
+  const ad = createAd(page, adDefinition.slot || "記事下メイン");
+  ad.client = adDefinition.client || "";
+  ad.appeal = adDefinition.appeal || inferAllocationAppeal(adDefinition);
+  ad.allocationName = adDefinition.allocationName || "";
+  ad.allocationNote = adDefinition.note || "";
+  ad.possibleAgencyName = Boolean(adDefinition.possibleAgencyName);
+  ad.memo = allocationMemo(adDefinition);
+  ad.industry = adDefinition.industry || (ad.client || ad.appeal || ad.memo ? inferIndustry(ad) : "未分類");
+  ad.verdict = "△";
+  ad.reason = ad.client
+    ? "割付表を参考に広告主候補を補完。代理店名の可能性があるため最終確認が必要"
+    : "PDFから紙面日付と広告枠を読み取り済み。広告主・訴求内容はOCRまたは担当者入力で確認";
+  return ad;
+}
+
+function inferAllocationAppeal(definition) {
+  const text = normalizeText(`${definition.client || ""} ${definition.allocationName || ""} ${definition.note || ""}`);
+  if (/製紙|紙パルプ|紙業|パルプ/.test(text)) return "製紙・紙業";
+  if (/公明|写真で読む|グラフ|党出版物|月刊|潮|中央公論|書店|出版/.test(text)) return "出版・公明関連資料";
+  if (/gサーチ|gsearch|電子版/.test(text)) return "記事検索・電子版";
+  if (/イクハク|子育|子ども|こども|kids|unhcr|支援/.test(text)) return "子育て・支援";
+  if (/建設|工業社|冷熱|熱学|熱工業|関電工|トーエネック|ユアテック|エンジニア|電工|設備/.test(text)) return "建設・設備";
+  if (/夢g|フローラ|ヤマダ|がくぶん|通販|健康食品|高圧洗浄機/.test(text)) return "通販・直販";
+  return "";
+}
+
+function allocationMemo(definition) {
+  if (!definition.source && !definition.allocationName && !definition.note && !definition.possibleAgencyName) return "";
+  const parts = ["割付表参考"];
+  if (definition.allocationName && definition.client && definition.allocationName !== definition.client) {
+    parts.push(`割付名: ${definition.allocationName}`);
+  }
+  if (definition.possibleAgencyName) {
+    parts.push("代理店名の可能性あり");
+  }
+  if (definition.note) {
+    parts.push(`補足: ${definition.note}`);
+  }
+  return parts.join(" / ");
 }
 
 function seedImagePath(fileName, pageNumber) {
@@ -415,9 +477,28 @@ function toggleFeedbackHistory() {
   renderFeedbackHistory();
 }
 
-function togglePageImages() {
-  state.showPageImages = !state.showPageImages;
+function togglePageEditors() {
+  state.showPageEditors = !state.showPageEditors;
   renderPages();
+}
+
+function toggleControlSidebar() {
+  state.showControlSidebar = !state.showControlSidebar;
+  updateSidebarVisibility();
+}
+
+function togglePaperSidebar() {
+  state.showPaperSidebar = !state.showPaperSidebar;
+  updateSidebarVisibility();
+}
+
+function updateSidebarVisibility() {
+  document.body.classList.toggle("control-sidebar-hidden", !state.showControlSidebar);
+  document.body.classList.toggle("paper-sidebar-hidden", !state.showPaperSidebar);
+  els.toggleControlSidebar.setAttribute("aria-expanded", String(state.showControlSidebar));
+  els.togglePaperSidebar.setAttribute("aria-expanded", String(state.showPaperSidebar));
+  els.toggleControlSidebar.textContent = state.showControlSidebar ? "操作を隠す" : "操作";
+  els.togglePaperSidebar.textContent = state.showPaperSidebar ? "紙面を隠す" : "紙面";
 }
 
 function saveEmail() {
@@ -489,6 +570,7 @@ function handlePageInput(event) {
   if (!ad || !target.dataset.field) return;
   ad[target.dataset.field] = target.value;
   runAnalysis();
+  renderCodexReview();
   renderAnalysis();
   renderSummary();
 }
@@ -638,7 +720,10 @@ function renderAll() {
 
 function renderCodexReview() {
   const review = state.dateReviews.find(item => item.date === state.selectedDate);
-  if (!review) {
+  const ads = collectAds().filter(ad => ad.date === state.selectedDate);
+  const comparisonSource = ads.length ? ads : selectedAllocationReferences().map(allocationReferenceToAd);
+  const comparisonItems = buildComparisonItems(review, comparisonSource);
+  if (!review && !comparisonItems.length) {
     els.codexReviewPanel.innerHTML = `
       <div class="empty-state">この日付のCodex重複判定はまだありません。PDFを確認後、判定結果をここに追加します。</div>
     `;
@@ -648,17 +733,20 @@ function renderCodexReview() {
   els.codexReviewPanel.innerHTML = `
     <div class="review-summary">
       <div class="review-summary-main">
-        <span class="verdict ${verdictClass(review.verdict)}">${review.verdict}</span>
+        <span class="verdict ${verdictClass(review?.verdict || "△")}">${review?.verdict || "△"}</span>
         <div>
-          <h3>${escapeHtml(review.title)}</h3>
-          <p>${escapeHtml(review.summary)}</p>
+          <h3>${escapeHtml(review?.title || "割付表参考による候補チェック")}</h3>
+          <p>${escapeHtml(review?.summary || "PDF未登録または目視前の日付でも、割付表の広告主候補から近い業種・訴求の組み合わせを参考表示します。")}</p>
         </div>
       </div>
+      <div class="comparison-list">
+        ${comparisonItems.length ? comparisonItems.map(renderComparisonItem).join("") : `<div class="empty-state compact-empty">明確な比較候補はありません。</div>`}
+      </div>
       <div class="review-meta">
-        ${(review.stats || []).map(item => `<span class="tag">${escapeHtml(item)}</span>`).join("")}
+        ${(review?.stats || []).map(item => `<span class="tag">${escapeHtml(item)}</span>`).join("")}
       </div>
       <div class="review-finding-list">
-        ${(review.findings || []).map(finding => `
+        ${(review?.findings || []).map(finding => `
           <article class="review-finding">
             <div class="review-finding-title">
               <span class="verdict ${verdictClass(finding.verdict)}">${finding.verdict}</span>
@@ -673,9 +761,110 @@ function renderCodexReview() {
   `;
 }
 
+function renderComparisonItem(item) {
+  return `
+    <article class="comparison-item">
+      <span class="comparison-bullet">●</span>
+      <span class="verdict ${verdictClass(item.verdict)}">${item.verdict}</span>
+      <div>
+        <h3>${escapeHtml(formatComparisonTitle(item))}</h3>
+        <p>${escapeHtml(item.reason)}</p>
+      </div>
+    </article>
+  `;
+}
+
+function formatComparisonTitle(item) {
+  const a = item.a || {};
+  const b = item.b || {};
+  return `${item.date || state.selectedDate} ${a.faceName || ""} ${a.client || "クライアントA"}、同日付 ${b.faceName || ""} ${b.client || "クライアントB"}`;
+}
+
+function buildComparisonItems(review, ads) {
+  const explicit = (review?.comparisons || []).map(item => ({
+    verdict: item.verdict || review?.verdict || "△",
+    date: item.date || state.selectedDate,
+    a: item.a || {},
+    b: item.b || {},
+    reason: item.reason || item.theme || review?.summary || "要確認"
+  }));
+  if (explicit.length) return explicit;
+  return buildGeneratedComparisons(ads);
+}
+
+function buildGeneratedComparisons(ads) {
+  const groups = new Map();
+  for (const ad of ads) {
+    const theme = comparisonTheme(ad);
+    if (!theme) continue;
+    if (!groups.has(theme.key)) groups.set(theme.key, { ...theme, ads: [] });
+    groups.get(theme.key).ads.push(ad);
+  }
+
+  const items = [];
+  for (const group of groups.values()) {
+    const unique = group.ads.filter((ad, index, list) =>
+      list.findIndex(candidate => candidate.client === ad.client && candidate.pageId === ad.pageId) === index
+    );
+    if (unique.length < 2) continue;
+    for (let index = 0; index < unique.length - 1 && items.length < 8; index += 1) {
+      const a = unique[index];
+      const b = unique[index + 1];
+      items.push({
+        verdict: "△",
+        date: state.selectedDate,
+        a: comparisonEndpoint(a),
+        b: comparisonEndpoint(b),
+        reason: `${group.label}。割付表は参考情報なので、広告主名と紙面上の実広告を目視確認してください。`
+      });
+    }
+  }
+  return items;
+}
+
+function comparisonEndpoint(ad) {
+  const page = findPage(ad.pageId);
+  return {
+    faceName: page?.faceName || ad.faceName || `${ad.pageNumber}面`,
+    client: ad.client || ad.allocationName || "広告主未入力"
+  };
+}
+
+function allocationReferenceToAd(reference, index) {
+  const ad = {
+    id: `allocation-${index}`,
+    pageId: "",
+    paperId: "",
+    pdfName: reference.source || "割付表",
+    date: reference.date,
+    pageNumber: 0,
+    faceName: reference.faceName,
+    slot: reference.slot,
+    client: reference.client || "",
+    allocationName: reference.allocationName || "",
+    appeal: reference.appeal || "",
+    memo: `${reference.note || ""} ${reference.possibleAgencyName ? "代理店名の可能性あり" : ""}`.trim(),
+    industry: "未分類",
+    ocrText: ""
+  };
+  ad.appeal = ad.appeal || inferAllocationAppeal(reference);
+  ad.industry = inferIndustry(ad);
+  return ad;
+}
+
+function comparisonTheme(ad) {
+  const text = normalizeText(`${ad.client} ${ad.allocationName || ""} ${ad.industry} ${ad.appeal} ${ad.memo}`);
+  if (/製紙|紙パルプ|紙業|パルプ/.test(text)) return { key: "paper", label: "似たような製紙会社・紙業系の広告が近い日付内にあります" };
+  if (/公明|写真で読む|グラフ|党出版物|月刊|潮|中央公論|書店|出版|電子版|gサーチ|gsearch/.test(text)) return { key: "publishing", label: "公明関連・出版・記事検索系の訴求が近い組み合わせです" };
+  if (/イクハク|子育|子ども|こども|kids|unhcr|支援/.test(text)) return { key: "children", label: "子育て・子ども支援テーマが近い組み合わせです" };
+  if (/建設|工業社|冷熱|熱学|熱工業|関電工|トーエネック|ユアテック|エンジニア|電工|設備/.test(text)) return { key: "construction", label: "建設・設備・エンジニアリング系の広告が近い組み合わせです" };
+  if (/夢g|フローラ|ヤマダ|がくぶん|通販|健康食品|高圧洗浄機/.test(text)) return { key: "retail", label: "通販・直販系の広告が近い組み合わせです" };
+  return null;
+}
+
 function renderFeedbackHistory() {
   if (!state.feedbacks.length) {
-    els.feedbackHistory.innerHTML = `<div class="history-item"><span class="helper-text">フィードバックはまだありません。</span></div>`;
+    els.feedbackHistory.innerHTML = `<div class="history-item"><span class="helper-text">目視フィードバックはまだありません。</span></div>`;
     return;
   }
   els.feedbackHistory.innerHTML = state.feedbacks
@@ -717,18 +906,21 @@ function renderNavigation() {
     const dateValue = toDateInputValue(date);
     const inMonth = dateValue.startsWith(state.selectedMonth);
     const count = paperCountForDate(dateValue);
+    const allocationCount = allocationCountForDate(dateValue);
     const classes = [
       "calendar-day",
       inMonth ? "" : "is-outside",
       dateValue === today ? "is-today" : "",
       dateValue === state.selectedDate ? "is-active" : "",
-      count ? "has-pdf" : ""
+      count ? "has-pdf" : "",
+      allocationCount ? "has-allocation" : ""
     ].filter(Boolean).join(" ");
+    const countLabel = count ? `${count}PDF` : allocationCount ? `${allocationCount}枠` : "PDFなし";
 
     return `
-      <button class="${classes}" type="button" data-date="${dateValue}" aria-label="${dateValue} ${count ? `${count}件のPDF` : "PDFなし"}">
+      <button class="${classes}" type="button" data-date="${dateValue}" aria-label="${dateValue} ${count ? `${count}件のPDF` : allocationCount ? `${allocationCount}件の割付参考` : "PDFなし"}">
         <span class="calendar-day-number">${date.getDate()}</span>
-        <span class="calendar-day-count">${count}PDF</span>
+        <span class="calendar-day-count">${countLabel}</span>
       </button>
     `;
   }).join("");
@@ -745,6 +937,7 @@ function renderSummary() {
   els.metricPages.textContent = pages.length;
   els.metricAds.textContent = ads.length;
   els.metricAlerts.textContent = alertCount;
+  renderAllocationReferences();
 
   if (!papers.length) {
     els.paperList.innerHTML = `<div class="empty-state">PDFを取り込むと、この日に紐づくファイルが表示されます。</div>`;
@@ -762,60 +955,118 @@ function renderSummary() {
     .join("");
 }
 
+function renderAllocationReferences() {
+  const references = selectedAllocationReferences();
+  if (!references.length) {
+    els.allocationReferenceList.innerHTML = `<div class="allocation-empty">この日の割付表参考はありません。</div>`;
+    return;
+  }
+
+  els.allocationReferenceList.innerHTML = references
+    .map(reference => `
+      <div class="allocation-item">
+        <div class="allocation-line">
+          <strong>${escapeHtml(reference.client || reference.allocationName || "未入力")}</strong>
+          <span>${escapeHtml(reference.faceName)} / ${escapeHtml(reference.slot)}</span>
+        </div>
+        ${reference.allocationName && reference.allocationName !== reference.client ? `<span class="helper-text">割付名: ${escapeHtml(reference.allocationName)}</span>` : ""}
+        ${reference.note ? `<span class="helper-text">補足: ${escapeHtml(reference.note)}</span>` : ""}
+        ${reference.possibleAgencyName ? `<span class="tag caution-tag">代理店名の可能性</span>` : ""}
+      </div>
+    `)
+    .join("");
+}
+
 function renderPages() {
   const pages = selectedPages();
-  updatePageImageToggle(pages.length);
+  updatePageEditorToggle(pages.length);
   if (!pages.length) {
     els.pagesGrid.innerHTML = `<div class="empty-state">この日付のPDFページはまだありません。</div>`;
     return;
   }
 
-  els.pagesGrid.innerHTML = pages
-    .map(page => `
-      <article class="page-card">
-        ${state.showPageImages ? `<img class="page-thumb ${page.orientation === "portrait" ? "is-portrait" : ""}" src="${page.thumbnail}" alt="${escapeHtml(page.pdfName)} ${page.pageNumber}ページ">` : ""}
-        <div class="page-body">
-          <div class="page-title-row">
-            <div>
-              <h3>${escapeHtml(page.pdfName)}</h3>
-              <span class="helper-text">${page.pageNumber}ページ / 紙面日付 ${page.date} / ${page.orientation === "portrait" ? "縦向き" : "横向き"} / ${page.autoRotated ? "自動補正" : `回転${page.rotation}度`} / 内容面積 ${Math.round(page.contentRatio * 100)}%</span>
-            </div>
-            <span class="tag">${page.dateConfirmed ? "日付確認済み" : "日付未確認"}</span>
+  els.pagesGrid.innerHTML = spreadDefinitions
+    .map(group => {
+      const groupPages = pages
+        .filter(page => group.faces.includes(page.faceName))
+        .sort((a, b) => group.faces.indexOf(a.faceName) - group.faces.indexOf(b.faceName));
+
+      return `
+        <section class="spread-group">
+          <div class="spread-heading">
+            <h3>${escapeHtml(group.label)}</h3>
+            <span>${groupPages.length ? `${groupPages.length}面` : "未登録"}</span>
           </div>
-          <div class="rotation-actions" aria-label="紙面の向き調整">
-            <button class="small-button" type="button" data-rotate-page="${page.id}" data-degrees="-90">左90</button>
-            <button class="small-button" type="button" data-rotate-page="${page.id}" data-degrees="90">右90</button>
+          <div class="spread-pages">
+            ${groupPages.length ? groupPages.map(renderPagePreview).join("") : `<div class="spread-empty">PDF未登録</div>`}
           </div>
-          <div class="page-options">
-            <label>
-              紙面日付
-              <input type="date" value="${escapeHtml(page.date)}" data-field="pageDate" data-page-id="${page.id}">
-            </label>
-            <label>
-              面名
-              <input value="${escapeHtml(page.faceName)}" data-field="faceName" data-page-id="${page.id}">
-            </label>
-            <label class="switch-line">
-              <input type="checkbox" ${page.isLate ? "checked" : ""} data-field="isLate" data-page-id="${page.id}">
-              ラテ面
-            </label>
-          </div>
-          <div class="ad-toolbar">
-            <strong>広告枠 ${page.ads.length}件</strong>
-            <button class="small-button" type="button" data-add-ad="${page.id}">広告枠追加</button>
-          </div>
-          ${page.ads.map(ad => renderAdEditor(ad, page)).join("")}
-        </div>
-      </article>
-    `)
+        </section>
+      `;
+    })
     .join("");
 }
 
-function updatePageImageToggle(pageCount) {
-  if (!els.togglePageImages) return;
-  els.togglePageImages.disabled = pageCount === 0;
-  els.togglePageImages.setAttribute("aria-expanded", String(state.showPageImages));
-  els.togglePageImages.textContent = state.showPageImages ? "紙面画像を隠す" : "紙面画像を表示";
+function renderPagePreview(page) {
+  return `
+    <article class="page-card paper-preview-card">
+      <img class="page-thumb ${page.orientation === "portrait" ? "is-portrait" : ""}" src="${page.thumbnail}" alt="${escapeHtml(page.pdfName)} ${page.pageNumber}ページ">
+      <div class="page-compact-body">
+        <div class="page-title-row">
+          <div>
+            <h3>${escapeHtml(page.faceName)}</h3>
+            <span class="helper-text">${page.pageNumber}ページ / ${page.date}</span>
+          </div>
+          <span class="tag">${page.ads.length}枠</span>
+        </div>
+        <div class="page-ad-summary">
+          ${page.ads.map(ad => `
+            <span class="ad-chip">
+              ${escapeHtml(ad.client || ad.allocationName || "広告主未入力")}
+              <small>${escapeHtml(ad.appeal || ad.slot || "")}</small>
+            </span>
+          `).join("")}
+        </div>
+        ${state.showPageEditors ? renderPageEditorPanel(page) : ""}
+      </div>
+    </article>
+  `;
+}
+
+function renderPageEditorPanel(page) {
+  return `
+    <div class="page-editor-panel">
+      <div class="rotation-actions" aria-label="紙面の向き調整">
+        <button class="small-button" type="button" data-rotate-page="${page.id}" data-degrees="-90">左90</button>
+        <button class="small-button" type="button" data-rotate-page="${page.id}" data-degrees="90">右90</button>
+      </div>
+      <div class="page-options">
+        <label>
+          紙面日付
+          <input type="date" value="${escapeHtml(page.date)}" data-field="pageDate" data-page-id="${page.id}">
+        </label>
+        <label>
+          面名
+          <input value="${escapeHtml(page.faceName)}" data-field="faceName" data-page-id="${page.id}">
+        </label>
+        <label class="switch-line">
+          <input type="checkbox" ${page.isLate ? "checked" : ""} data-field="isLate" data-page-id="${page.id}">
+          ラテ面
+        </label>
+      </div>
+      <div class="ad-toolbar">
+        <strong>広告枠 ${page.ads.length}件</strong>
+        <button class="small-button" type="button" data-add-ad="${page.id}">広告枠追加</button>
+      </div>
+      ${page.ads.map(ad => renderAdEditor(ad, page)).join("")}
+    </div>
+  `;
+}
+
+function updatePageEditorToggle(pageCount) {
+  if (!els.togglePageEditors) return;
+  els.togglePageEditors.disabled = pageCount === 0;
+  els.togglePageEditors.setAttribute("aria-expanded", String(state.showPageEditors));
+  els.togglePageEditors.textContent = state.showPageEditors ? "入力欄を隠す" : "入力欄を表示";
 }
 
 function renderAdEditor(ad, page) {
@@ -826,6 +1077,7 @@ function renderAdEditor(ad, page) {
         <button class="small-button" type="button" data-ocr-ad="${ad.id}" data-page-id="${page.id}">OCR</button>
         <button class="small-button" type="button" data-remove-ad="${ad.id}" data-page-id="${page.id}">削除</button>
       </div>
+      ${renderAllocationNote(ad)}
       <div class="ad-form-grid">
         <label>
           広告枠
@@ -857,6 +1109,18 @@ function renderAdEditor(ad, page) {
         </label>
       </div>
       <span class="helper-text">${escapeHtml(ad.reason || "未分析")}</span>
+    </div>
+  `;
+}
+
+function renderAllocationNote(ad) {
+  if (!ad.allocationName && !ad.allocationNote && !ad.possibleAgencyName) return "";
+  return `
+    <div class="allocation-note">
+      <span class="tag">割付表参考</span>
+      ${ad.allocationName && ad.allocationName !== ad.client ? `<span>割付名: ${escapeHtml(ad.allocationName)}</span>` : ""}
+      ${ad.allocationNote ? `<span>補足: ${escapeHtml(ad.allocationNote)}</span>` : ""}
+      ${ad.possibleAgencyName ? `<span class="tag caution-tag">代理店名の可能性</span>` : ""}
     </div>
   `;
 }
@@ -936,6 +1200,16 @@ function paperCountForDate(date) {
   ).size;
 }
 
+function selectedAllocationReferences() {
+  return state.allocationReferences
+    .filter(reference => reference.date === state.selectedDate)
+    .sort((a, b) => (a.order || 0) - (b.order || 0));
+}
+
+function allocationCountForDate(date) {
+  return state.allocationReferences.filter(reference => reference.date === date).length;
+}
+
 function normalizeManifestEntry(item) {
   if (typeof item === "string") {
     return { name: item, paperDates: [] };
@@ -982,9 +1256,10 @@ function inferIndustry(ad) {
     ["金融・保険", ["保険", "相続", "投資", "年金", "ローン", "銀行", "資産"]],
     ["教育", ["講座", "学校", "大学", "資格", "学習", "セミナー", "教材"]],
     ["出版", ["本", "書籍", "出版", "新聞", "雑誌"]],
+    ["製紙・紙業", ["製紙", "紙パルプ", "紙業", "パルプ", "紙"]],
     ["宗教・仏事", ["仏", "墓", "葬", "法要", "霊園", "仏壇"]],
     ["旅行・観光", ["旅行", "観光", "ホテル", "温泉", "ツアー"]],
-    ["不動産・建設", ["住宅", "不動産", "建設", "リフォーム", "土地"]],
+    ["不動産・建設", ["住宅", "不動産", "建設", "リフォーム", "土地", "工業社", "冷熱", "熱学", "熱工業", "電工", "設備", "エンジニア"]],
     ["通販", ["通販", "送料無料", "注文", "お申し込み", "販売"]],
     ["文化・イベント", ["公演", "コンサート", "映画", "展覧", "イベント"]],
     ["行政・団体", ["協会", "財団", "法人", "自治体", "省"]]
@@ -1191,7 +1466,7 @@ async function copyCodexPrompt() {
       return `- ${ad.verdict || "未判定"} ${ad.pdfName} ${page ? page.faceName : `${ad.pageNumber}面`} ${ad.slot} / 広告主=${ad.client || "未入力"} / 業種=${ad.industry || "未分類"} / 訴求=${ad.appeal || summarizeText(ad.ocrText) || "未入力"} / 理由=${ad.reason || "未分析"}`;
     }),
     "",
-    "過去フィードバック:",
+    "過去目視フィードバック:",
     ...(state.feedbacks.length ? state.feedbacks.slice(0, 8).map(item => `- ${item.text}`) : ["- なし"]),
     "",
     "依頼: 日付の妥当性、同日内の広告主・業種・訴求内容のかぶり、○△✕判定の過不足を確認してください。"

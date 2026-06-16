@@ -1,5 +1,6 @@
 tmp/
 .vercel/
 *.pdf
+*.xlsx
 *.log
 node_modules/

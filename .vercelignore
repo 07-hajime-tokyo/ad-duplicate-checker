@@ -1,4 +1,4 @@
 tmp/
 *.pdf
+*.xlsx
 node_modules/
-
