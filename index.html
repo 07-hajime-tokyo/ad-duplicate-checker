@@ -95,26 +95,6 @@
           </div>
         </details>
 
-        <section class="calendar-panel" aria-label="日付カレンダー">
-          <div class="calendar-head">
-            <button class="ghost-button icon-button" id="prevMonth" type="button" aria-label="前の月">‹</button>
-            <div>
-              <p class="eyebrow">Calendar</p>
-              <h2 id="currentMonthLabel">2026年06月</h2>
-            </div>
-            <button class="ghost-button icon-button" id="nextMonth" type="button" aria-label="次の月">›</button>
-          </div>
-          <div class="calendar-weekdays" aria-hidden="true">
-            <span>日</span>
-            <span>月</span>
-            <span>火</span>
-            <span>水</span>
-            <span>木</span>
-            <span>金</span>
-            <span>土</span>
-          </div>
-          <div class="calendar-grid" id="calendarGrid"></div>
-        </section>
       </aside>
 
       <section class="main-content" aria-label="チェック結果">
@@ -163,6 +143,26 @@
 
       <aside class="sidebar paper-sidebar" id="paperSidebar" aria-label="紙面サイドバー">
         <div class="sidebar-resizer paper-resizer" data-resize-sidebar="paper" role="separator" aria-label="紙面サイドバーの幅を変更" tabindex="0"></div>
+        <section class="calendar-panel" aria-label="日付カレンダー">
+          <div class="calendar-head">
+            <button class="ghost-button icon-button" id="prevMonth" type="button" aria-label="前の月">‹</button>
+            <div>
+              <p class="eyebrow">Calendar</p>
+              <h2 id="currentMonthLabel">2026年06月</h2>
+            </div>
+            <button class="ghost-button icon-button" id="nextMonth" type="button" aria-label="次の月">›</button>
+          </div>
+          <div class="calendar-weekdays" aria-hidden="true">
+            <span>日</span>
+            <span>月</span>
+            <span>火</span>
+            <span>水</span>
+            <span>木</span>
+            <span>金</span>
+            <span>土</span>
+          </div>
+          <div class="calendar-grid" id="calendarGrid"></div>
+        </section>
         <section class="panel day-summary">
           <p class="eyebrow">Selected day</p>
           <h2 id="selectedDateTitle">日付未選択</h2>

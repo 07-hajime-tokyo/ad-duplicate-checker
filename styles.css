@@ -577,7 +577,7 @@ label {
   box-shadow: var(--shadow);
 }
 
-.control-sidebar .calendar-panel {
+.sidebar .calendar-panel {
   margin-bottom: 0;
   padding: 12px;
 }
@@ -597,7 +597,7 @@ label {
   line-height: 1;
 }
 
-.control-sidebar .icon-button {
+.sidebar .calendar-panel .icon-button {
   width: 32px;
   min-height: 32px;
   font-size: 18px;
@@ -610,8 +610,8 @@ label {
   gap: 6px;
 }
 
-.control-sidebar .calendar-weekdays,
-.control-sidebar .calendar-grid {
+.sidebar .calendar-panel .calendar-weekdays,
+.sidebar .calendar-panel .calendar-grid {
   gap: 3px;
 }
 
@@ -636,7 +636,7 @@ label {
   font-weight: 700;
 }
 
-.control-sidebar .calendar-day {
+.sidebar .calendar-panel .calendar-day {
   place-items: center;
   min-height: 30px;
   border-radius: 6px;
@@ -667,7 +667,7 @@ label {
   font-size: 15px;
 }
 
-.control-sidebar .calendar-day-number {
+.sidebar .calendar-panel .calendar-day-number {
   font-size: 12px;
 }
 
@@ -681,7 +681,7 @@ label {
   font-size: 11px;
 }
 
-.control-sidebar .calendar-day-count {
+.sidebar .calendar-panel .calendar-day-count {
   justify-self: center;
   width: 6px;
   min-width: 6px;

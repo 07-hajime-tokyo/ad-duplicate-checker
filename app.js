@@ -1302,8 +1302,21 @@ function renderAnalysis() {
 }
 
 function compactAdDetail(ad) {
-  const details = [ad.productCategory || ad.businessType, ad.appeal || ad.slot].filter(Boolean);
-  return details.join(" / ");
+  const industry = ad.industry && ad.industry !== "未分類" ? ad.industry : inferIndustry(ad);
+  const appeal = shortAdAppeal(ad);
+  return [industry || "未分類", appeal || "訴求未入力"].filter(Boolean).join(" / ");
+}
+
+function shortAdAppeal(ad, maxLength = 20) {
+  const text = ad.appeal || ad.productCategory || ad.businessType || summarizeText(ad.ocrText);
+  return truncateText(text, maxLength);
+}
+
+function truncateText(text, maxLength) {
+  const normalized = String(text || "").replace(/\s+/g, " ").trim();
+  const chars = Array.from(normalized);
+  if (chars.length <= maxLength) return normalized;
+  return `${chars.slice(0, Math.max(maxLength - 1, 0)).join("")}…`;
 }
 
 function collectAds() {
