@@ -8,7 +8,10 @@ const STORAGE = {
   emails: "ad-checker-emails"
 };
 
-const LOCAL_PREVIEW_URL = "http://localhost:4173/";
+const LOCAL_PREVIEW_URL =
+  window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+    ? "http://localhost:4173/"
+    : `${window.location.origin}/`;
 
 const industryOptions = [
   "未分類",
