@@ -56,6 +56,7 @@
 - `styles.css`: UIスタイル。
 - `app.js`: PDF取り込み、縦向き補正、広告入力、判定、フィードバック、メール文面作成。
 - `pdf-manifest.json`: このフォルダ内PDFのデモ読込対象。
+- `seed-data.json`: 公開サイトで表示する、PDFから読み取った紙面日付・ページ構成・広告枠・初期判定。
 - `docs/site-rules.md`: 制作ルール。
 - `AGENTS.md`: エージェント用入口。
 - `docs/review-agent-handoff.md`: この引き継ぎ資料。

@@ -82,6 +82,7 @@ function init() {
   els.publicationDate.value = state.selectedDate;
   bindEvents();
   renderAll();
+  loadSeedData();
 }
 
 function bindEvents() {
@@ -151,6 +152,7 @@ async function importFiles(files) {
   const pdfFiles = files.filter(file => file && file.name.toLowerCase().endsWith(".pdf"));
   if (!pdfFiles.length) return;
 
+  removeSeedData();
   setBusy(true, `${pdfFiles.length}件のPDFを取り込み中`);
   for (const file of pdfFiles) {
     const date = els.publicationDate.value || state.selectedDate;
@@ -163,6 +165,7 @@ async function importFiles(files) {
 }
 
 async function loadFolderPdfs() {
+  removeSeedData();
   setBusy(true, "フォルダ内PDFを確認中");
   try {
     const response = await fetch("./pdf-manifest.json", { cache: "no-store" });
@@ -184,6 +187,115 @@ async function loadFolderPdfs() {
     setBusy(false, "フォルダ内PDFの読込に失敗");
     els.importStatus.textContent = error.message;
   }
+}
+
+async function loadSeedData() {
+  if (state.papers.length) return;
+  try {
+    const response = await fetch("./seed-data.json", { cache: "no-store" });
+    if (!response.ok) return;
+    const seed = await response.json();
+    const papers = (seed.papers || []).map(createSeedPaper);
+    if (!papers.length) return;
+    state.papers.push(...papers);
+    const dates = papers.flatMap(paper => paper.pages.map(page => page.date)).sort();
+    state.selectedDate = dates.at(-1) || state.selectedDate;
+    state.selectedMonth = state.selectedDate.slice(0, 7);
+    els.publicationDate.value = state.selectedDate;
+    setBusy(false, "読み取り済みPDFデータを表示中");
+    renderAll();
+  } catch {
+    // 初期データは補助表示なので、読めなくても通常利用を継続する。
+  }
+}
+
+function createSeedPaper(seedPaper) {
+  const paper = {
+    id: makeId("seed-paper"),
+    name: seedPaper.name,
+    date: seedPaper.pages?.[0]?.date || state.selectedDate,
+    dateConfirmed: true,
+    source: "seed",
+    importedAt: new Date().toISOString(),
+    pageCount: seedPaper.pageCount || seedPaper.pages?.length || 0,
+    pages: []
+  };
+
+  paper.pages = (seedPaper.pages || []).map(seedPage => createSeedPage(paper, seedPage));
+  return paper;
+}
+
+function createSeedPage(paper, seedPage) {
+  const page = {
+    id: makeId("seed-page"),
+    paperId: paper.id,
+    pdfName: paper.name,
+    date: seedPage.date,
+    dateConfirmed: true,
+    pageNumber: seedPage.pageNumber,
+    faceName: seedPage.faceName || `${seedPage.pageNumber}面`,
+    isLate: Boolean(seedPage.isLate),
+    rotation: 0,
+    autoRotated: false,
+    orientation: "portrait",
+    thumbnail: createSeedThumbnail(paper.name, seedPage),
+    hash: "",
+    contentRatio: 0,
+    ads: []
+  };
+
+  page.ads = (seedPage.slots || ["記事下メイン"]).map(slot => ({
+    ...createAd(page, slot),
+    verdict: "△",
+    reason: "PDFから紙面日付と広告枠を読み取り済み。広告主・訴求内容はOCRまたは担当者入力で確認"
+  }));
+  return page;
+}
+
+function createSeedThumbnail(fileName, seedPage) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 420;
+  canvas.height = 594;
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#f7f8fa";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.strokeStyle = "#c8d2df";
+  context.lineWidth = 2;
+  context.strokeRect(14, 14, canvas.width - 28, canvas.height - 28);
+  context.fillStyle = "#1d2733";
+  context.font = "bold 24px sans-serif";
+  context.fillText("読み取り済みデータ", 38, 72);
+  context.font = "16px sans-serif";
+  wrapCanvasText(context, fileName, 38, 122, 340, 24);
+  context.font = "bold 20px sans-serif";
+  context.fillText(`紙面日付 ${seedPage.date}`, 38, 218);
+  context.fillText(`${seedPage.faceName || `${seedPage.pageNumber}面`} / PDF ${seedPage.pageNumber}ページ`, 38, 256);
+  context.fillStyle = "#667085";
+  context.font = "14px sans-serif";
+  wrapCanvasText(context, "公開版ではPDF本体と紙面画像を同梱していません。紙面から読み取った構造データだけを表示しています。", 38, 326, 340, 22);
+  return canvas.toDataURL("image/png");
+}
+
+function wrapCanvasText(context, text, x, y, maxWidth, lineHeight) {
+  const characters = String(text).split("");
+  let line = "";
+  let currentY = y;
+  for (const character of characters) {
+    const testLine = `${line}${character}`;
+    if (context.measureText(testLine).width > maxWidth && line) {
+      context.fillText(line, x, currentY);
+      line = character;
+      currentY += lineHeight;
+    } else {
+      line = testLine;
+    }
+  }
+  if (line) context.fillText(line, x, currentY);
+}
+
+function removeSeedData() {
+  if (!state.papers.some(paper => paper.source === "seed")) return;
+  state.papers = state.papers.filter(paper => paper.source !== "seed");
 }
 
 async function importPdfBuffer(buffer, fileName, date, dateConfirmed, paperDates = []) {

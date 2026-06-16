@@ -1,0 +1,44 @@
+{
+  "source": "local-pdf-derived",
+  "extractedAt": "2026-06-16",
+  "note": "PDF本体や紙面画像は公開せず、紙面から読み取った日付・ページ構成・広告枠・初期判定だけを同梱しています。",
+  "papers": [
+    {
+      "name": "20260615155016908.pdf",
+      "pageCount": 7,
+      "pages": [
+        { "pageNumber": 1, "date": "2026-06-13", "faceName": "1面", "slots": ["記事下メイン", "題字横", "題字中"] },
+        { "pageNumber": 2, "date": "2026-06-13", "faceName": "2面", "slots": ["記事下メイン"] },
+        { "pageNumber": 3, "date": "2026-06-13", "faceName": "3面", "slots": ["記事下メイン"] },
+        { "pageNumber": 4, "date": "2026-06-13", "faceName": "4面", "slots": ["記事下メイン"] },
+        { "pageNumber": 5, "date": "2026-06-13", "faceName": "5面", "slots": ["記事下メイン"] },
+        { "pageNumber": 6, "date": "2026-06-13", "faceName": "6面", "slots": ["記事下メイン"] },
+        { "pageNumber": 7, "date": "2026-06-13", "faceName": "ラテ面", "isLate": true, "slots": ["ラテ中"] }
+      ]
+    },
+    {
+      "name": "20260616095046819.pdf",
+      "pageCount": 18,
+      "pages": [
+        { "pageNumber": 1, "date": "2026-06-17", "faceName": "1面", "slots": ["記事下メイン", "題字横", "題字中"] },
+        { "pageNumber": 2, "date": "2026-06-17", "faceName": "2面", "slots": ["記事下メイン"] },
+        { "pageNumber": 3, "date": "2026-06-17", "faceName": "3面", "slots": ["記事下メイン"] },
+        { "pageNumber": 4, "date": "2026-06-17", "faceName": "4面", "slots": ["記事下メイン"] },
+        { "pageNumber": 5, "date": "2026-06-17", "faceName": "5面", "slots": ["記事下メイン"] },
+        { "pageNumber": 6, "date": "2026-06-17", "faceName": "ラテ面", "isLate": true, "slots": ["ラテ中"] },
+        { "pageNumber": 7, "date": "2026-06-20", "faceName": "1面", "slots": ["記事下メイン", "題字横", "題字中"] },
+        { "pageNumber": 8, "date": "2026-06-20", "faceName": "2面", "slots": ["記事下メイン"] },
+        { "pageNumber": 9, "date": "2026-06-20", "faceName": "3面", "slots": ["記事下メイン"] },
+        { "pageNumber": 10, "date": "2026-06-20", "faceName": "4面", "slots": ["記事下メイン"] },
+        { "pageNumber": 11, "date": "2026-06-20", "faceName": "5面", "slots": ["記事下メイン"] },
+        { "pageNumber": 12, "date": "2026-06-20", "faceName": "6面", "slots": ["記事下メイン"] },
+        { "pageNumber": 13, "date": "2026-06-20", "faceName": "ラテ面", "isLate": true, "slots": ["ラテ中"] },
+        { "pageNumber": 14, "date": "2026-06-21", "faceName": "1面", "slots": ["記事下メイン", "題字横", "題字中"] },
+        { "pageNumber": 15, "date": "2026-06-21", "faceName": "2面", "slots": ["記事下メイン"] },
+        { "pageNumber": 16, "date": "2026-06-21", "faceName": "3面", "slots": ["記事下メイン"] },
+        { "pageNumber": 17, "date": "2026-06-21", "faceName": "4面", "slots": ["記事下メイン"] },
+        { "pageNumber": 18, "date": "2026-06-21", "faceName": "ラテ面", "isLate": true, "slots": ["ラテ中"] }
+      ]
+    }
+  ]
+}
