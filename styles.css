@@ -77,7 +77,10 @@ main,
 
 .app-shell {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns:
+    minmax(0, var(--control-sidebar-width))
+    minmax(0, 1fr)
+    minmax(0, var(--paper-sidebar-width));
   gap: 12px;
   align-items: start;
 }
@@ -93,6 +96,7 @@ main,
   top: 12px;
   display: grid;
   gap: 12px;
+  min-width: 0;
   max-height: calc(100vh - 24px);
   overflow: auto;
   align-self: start;
@@ -1121,6 +1125,23 @@ label {
   line-height: 1.55;
 }
 
+.review-section-title {
+  color: #334155;
+  font-size: 14px;
+}
+
+.review-table-wrap {
+  box-shadow: none;
+}
+
+.review-table {
+  min-width: 760px;
+}
+
+.review-table td:last-child {
+  min-width: 240px;
+}
+
 .legend {
   display: flex;
   gap: 8px;
@@ -1204,7 +1225,7 @@ tr:last-child td {
   padding: 24px;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1240px) {
   .app-shell {
     grid-template-columns: 1fr;
   }
@@ -1215,6 +1236,11 @@ tr:last-child td {
     max-width: none;
     max-height: none;
     resize: none;
+  }
+
+  .control-sidebar,
+  .paper-sidebar {
+    min-width: 0;
   }
 
   .main-content {

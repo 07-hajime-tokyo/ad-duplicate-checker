@@ -139,6 +139,7 @@ function bindEvents() {
     renderAll();
   });
   els.togglePageEditors.addEventListener("click", togglePageEditors);
+  window.addEventListener("resize", applySidebarWidths);
   bindSidebarResizers();
 
   els.dropZone.addEventListener("dragover", event => {
@@ -598,10 +599,23 @@ function applySidebarWidths() {
 }
 
 function setSidebarWidth(target, width, persist = true) {
-  const clamped = clamp(width, target === "paper" ? 320 : 240, target === "paper" ? 760 : 520);
+  const min = target === "paper" ? 320 : 240;
+  const hardMax = target === "paper" ? 760 : 520;
+  const clamped = clamp(width, min, availableSidebarMax(target, min, hardMax));
   state.sidebarWidths[target] = clamped;
   document.documentElement.style.setProperty(`--${target}-sidebar-width`, `${clamped}px`);
   if (persist) saveStorage(STORAGE.sidebarWidths, state.sidebarWidths);
+}
+
+function availableSidebarMax(target, min, hardMax) {
+  if (window.matchMedia("(max-width: 1240px)").matches) return hardMax;
+  const shellWidth = els.appShell?.getBoundingClientRect().width || window.innerWidth - 32;
+  const otherTarget = target === "paper" ? "control" : "paper";
+  const otherWidth = state.sidebarWidths[otherTarget] || defaultSidebarWidth(otherTarget);
+  const reservedMainWidth = 560;
+  const gridGaps = 24;
+  const available = shellWidth - otherWidth - reservedMainWidth - gridGaps;
+  return Math.max(min, Math.min(hardMax, available));
 }
 
 function defaultSidebarWidth(target) {
@@ -852,45 +866,77 @@ function renderCodexReview() {
           <p>${escapeHtml(review?.summary || "PDF未登録または目視前の日付でも、割付表の広告主候補から近い業種・訴求の組み合わせを参考表示します。")}</p>
         </div>
       </div>
-      <div class="comparison-list">
-        ${comparisonItems.length ? comparisonItems.map(renderComparisonItem).join("") : `<div class="empty-state compact-empty">明確な比較候補はありません。</div>`}
-      </div>
       <div class="review-meta">
         ${(review?.stats || []).map(item => `<span class="tag">${escapeHtml(item)}</span>`).join("")}
       </div>
-      <div class="review-finding-list">
-        ${(review?.findings || []).map(finding => `
-          <article class="review-finding">
-            <div class="review-finding-title">
-              <span class="verdict ${verdictClass(finding.verdict)}">${finding.verdict}</span>
-              <span>${escapeHtml(finding.title)}</span>
-            </div>
-            <p>${escapeHtml(finding.reason)}</p>
-            <span class="helper-text">${escapeHtml(finding.action)}</span>
-          </article>
-        `).join("")}
-      </div>
+      ${renderComparisonTable(comparisonItems)}
+      ${renderFindingTable(review?.findings || [])}
     </div>
   `;
 }
 
-function renderComparisonItem(item) {
+function renderComparisonTable(items) {
+  if (!items.length) return `<div class="empty-state compact-empty">明確な比較候補はありません。</div>`;
   return `
-    <article class="comparison-item">
-      <span class="comparison-bullet">●</span>
-      <span class="verdict ${verdictClass(item.verdict)}">${item.verdict}</span>
-      <div>
-        <h3>${escapeHtml(formatComparisonTitle(item))}</h3>
-        <p>${escapeHtml(item.reason)}</p>
-      </div>
-    </article>
+    <h3 class="review-section-title">比較結果</h3>
+    <div class="table-wrap review-table-wrap">
+      <table class="review-table">
+        <thead>
+          <tr>
+            <th>判定</th>
+            <th>日付</th>
+            <th>広告A</th>
+            <th>広告B</th>
+            <th>理由</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(item => `
+            <tr>
+              <td><span class="verdict ${verdictClass(item.verdict)}">${item.verdict}</span></td>
+              <td>${escapeHtml(item.date || state.selectedDate)}</td>
+              <td>${escapeHtml(formatComparisonEndpoint(item.a))}</td>
+              <td>${escapeHtml(formatComparisonEndpoint(item.b))}</td>
+              <td>${escapeHtml(item.reason || "要確認")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
   `;
 }
 
-function formatComparisonTitle(item) {
-  const a = item.a || {};
-  const b = item.b || {};
-  return `${item.date || state.selectedDate} ${a.faceName || ""} ${a.client || "クライアントA"}、同日付 ${b.faceName || ""} ${b.client || "クライアントB"}`;
+function renderFindingTable(findings) {
+  if (!findings.length) return "";
+  return `
+    <h3 class="review-section-title">確認メモ</h3>
+    <div class="table-wrap review-table-wrap">
+      <table class="review-table">
+        <thead>
+          <tr>
+            <th>判定</th>
+            <th>確認項目</th>
+            <th>理由</th>
+            <th>対応</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${findings.map(finding => `
+            <tr>
+              <td><span class="verdict ${verdictClass(finding.verdict)}">${finding.verdict}</span></td>
+              <td>${escapeHtml(finding.title || "確認事項")}</td>
+              <td>${escapeHtml(finding.reason || "")}</td>
+              <td>${escapeHtml(finding.action || "")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function formatComparisonEndpoint(endpoint = {}) {
+  return `${endpoint.faceName || ""} ${endpoint.client || "クライアント"}`.trim();
 }
 
 function buildComparisonItems(review, ads) {
