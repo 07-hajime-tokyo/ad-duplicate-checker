@@ -44,6 +44,7 @@ const state = {
   feedbacks: loadStorage(STORAGE.feedbacks, []),
   emails: loadStorage(STORAGE.emails, []),
   dateReviews: [],
+  clientProfiles: {},
   allocationSource: null,
   allocationReferences: [],
   showPageEditors: false,
@@ -227,6 +228,7 @@ async function loadSeedData() {
     const response = await fetch("./seed-data.json", { cache: "no-store" });
     if (!response.ok) return;
     const seed = await response.json();
+    state.clientProfiles = seed.clientProfiles || {};
     state.allocationSource = seed.allocationSource || null;
     state.allocationReferences = seed.allocationReferences || [];
     const papers = (seed.papers || []).map(createSeedPaper);
@@ -287,19 +289,60 @@ function createSeedPage(paper, seedPage) {
 
 function createSeedAd(page, definition) {
   const adDefinition = typeof definition === "string" ? { slot: definition } : definition;
+  const profile = profileForAd(adDefinition);
   const ad = createAd(page, adDefinition.slot || "記事下メイン");
-  ad.client = adDefinition.client || "";
-  ad.appeal = adDefinition.appeal || inferAllocationAppeal(adDefinition);
+  ad.client = adDefinition.client || profile.client || "";
   ad.allocationName = adDefinition.allocationName || "";
   ad.allocationNote = adDefinition.note || "";
   ad.possibleAgencyName = Boolean(adDefinition.possibleAgencyName);
   ad.memo = allocationMemo(adDefinition);
-  ad.industry = adDefinition.industry || (ad.client || ad.appeal || ad.memo ? inferIndustry(ad) : "未分類");
+  ad.industry = adDefinition.industry || profile.industry || (ad.client || ad.appeal || ad.memo ? inferIndustry(ad) : "未分類");
+  ad.businessType = adDefinition.businessType || profile.businessType || "";
+  ad.productCategory = adDefinition.productCategory || profile.productCategory || "";
+  ad.appeal = chooseAppeal(adDefinition.appeal, profile, inferAllocationAppeal(adDefinition));
+  ad.ocrText = adDefinition.ocrText || profile.ocrText || "";
   ad.verdict = "△";
   ad.reason = ad.client
     ? "割付表を参考に広告主候補を補完。代理店名の可能性があるため最終確認が必要"
     : "PDFから紙面日付と広告枠を読み取り済み。広告主・訴求内容はOCRまたは担当者入力で確認";
   return ad;
+}
+
+function profileForAd(adLike) {
+  const names = [adLike.client, adLike.allocationName].filter(Boolean);
+  for (const name of names) {
+    const profile = profileForName(name);
+    if (profile) return profile;
+  }
+  return {};
+}
+
+function profileForName(name) {
+  if (!name) return null;
+  if (state.clientProfiles[name]) return state.clientProfiles[name];
+  const normalized = normalizeText(name);
+  return Object.entries(state.clientProfiles).find(([key]) => {
+    const normalizedKey = normalizeText(key);
+    return normalized.includes(normalizedKey) || normalizedKey.includes(normalized);
+  })?.[1] || null;
+}
+
+function chooseAppeal(explicitAppeal, profile, fallback) {
+  if (!explicitAppeal) return profile.appeal || fallback || "";
+  if (!profile.appeal) return explicitAppeal;
+  const explicitText = normalizeText(explicitAppeal);
+  const profileText = normalizeText(profile.appeal);
+  return profileText.includes(explicitText) ? profile.appeal : explicitAppeal;
+}
+
+function applyProfileToAd(ad) {
+  const profile = profileForAd(ad);
+  if (!profile) return;
+  if (!ad.industry || ad.industry === "未分類") ad.industry = profile.industry || ad.industry;
+  if (!ad.businessType) ad.businessType = profile.businessType || "";
+  if (!ad.productCategory) ad.productCategory = profile.productCategory || "";
+  if (!ad.appeal) ad.appeal = profile.appeal || "";
+  if (!ad.ocrText) ad.ocrText = profile.ocrText || "";
 }
 
 function inferAllocationAppeal(definition) {
@@ -456,6 +499,8 @@ function createAd(page, slot) {
     slot,
     client: "",
     industry: "未分類",
+    businessType: "",
+    productCategory: "",
     appeal: "",
     ocrText: "",
     memo: "",
@@ -635,6 +680,7 @@ function handlePageInput(event) {
   const ad = findAd(target.dataset.adId);
   if (!ad || !target.dataset.field) return;
   ad[target.dataset.field] = target.value;
+  if (target.dataset.field === "client") applyProfileToAd(ad);
   runAnalysis();
   renderCodexReview();
   renderAnalysis();
@@ -725,8 +771,8 @@ function runAnalysis() {
 
 function analyzeAd(ad, allAds) {
   const industry = ad.industry && ad.industry !== "未分類" ? ad.industry : inferIndustry(ad);
-  const text = normalizeText(`${ad.client} ${industry} ${ad.appeal} ${ad.ocrText} ${ad.memo}`);
-  const hasContent = Boolean(normalizeText(`${ad.client} ${ad.appeal} ${ad.ocrText} ${ad.memo}`));
+  const text = normalizeText(`${ad.client} ${industry} ${ad.businessType} ${ad.productCategory} ${ad.appeal} ${ad.ocrText} ${ad.memo}`);
+  const hasContent = Boolean(normalizeText(`${ad.client} ${ad.businessType} ${ad.productCategory} ${ad.appeal} ${ad.ocrText} ${ad.memo}`));
   const reasons = [];
   let verdict = hasContent ? "○" : "△";
 
@@ -736,12 +782,13 @@ function analyzeAd(ad, allAds) {
 
   for (const other of allAds) {
     if (other.id === ad.id) continue;
-    const otherText = normalizeText(`${other.client} ${other.industry} ${other.appeal} ${other.ocrText} ${other.memo}`);
+    const otherText = normalizeText(`${other.client} ${other.industry} ${other.businessType || ""} ${other.productCategory || ""} ${other.appeal} ${other.ocrText} ${other.memo}`);
     const samePage = other.pageId === ad.pageId;
     const imageSimilarity = samePage ? 0 : compareHashes(ad.page?.hash, other.page?.hash);
     const textSimilarity = compareText(text, otherText);
     const sameClient = ad.client && other.client && normalizeText(ad.client) === normalizeText(other.client);
     const sameIndustry = industry !== "未分類" && industry === (other.industry || inferIndustry(other));
+    const sameProductCategory = ad.productCategory && other.productCategory && normalizeText(ad.productCategory) === normalizeText(other.productCategory);
     const appealOverlap = overlapKeywords(`${ad.appeal} ${ad.ocrText}`, `${other.appeal} ${other.ocrText}`);
 
     if (imageSimilarity >= 0.92) {
@@ -760,9 +807,9 @@ function analyzeAd(ad, allAds) {
     if (textSimilarity >= 0.55) {
       verdict = "✕";
       reasons.push(`訴求文が${other.pageNumber}面と高類似`);
-    } else if ((textSimilarity >= 0.32 || (sameIndustry && appealOverlap)) && verdict !== "✕") {
+    } else if ((textSimilarity >= 0.32 || sameProductCategory || (sameIndustry && appealOverlap)) && verdict !== "✕") {
       verdict = "△";
-      reasons.push(`同業種または訴求が${other.pageNumber}面と近い`);
+      reasons.push(`${sameProductCategory ? "商品カテゴリ" : "同業種または訴求"}が${other.pageNumber}面と近い`);
     }
   }
 
@@ -909,22 +956,29 @@ function allocationReferenceToAd(reference, index) {
     client: reference.client || "",
     allocationName: reference.allocationName || "",
     appeal: reference.appeal || "",
+    businessType: "",
+    productCategory: "",
     memo: `${reference.note || ""} ${reference.possibleAgencyName ? "代理店名の可能性あり" : ""}`.trim(),
     industry: "未分類",
     ocrText: ""
   };
-  ad.appeal = ad.appeal || inferAllocationAppeal(reference);
-  ad.industry = inferIndustry(ad);
+  const profile = profileForAd(reference);
+  ad.industry = profile.industry || inferIndustry(ad);
+  ad.businessType = profile.businessType || "";
+  ad.productCategory = profile.productCategory || "";
+  ad.appeal = chooseAppeal(ad.appeal, profile, inferAllocationAppeal(reference));
   return ad;
 }
 
 function comparisonTheme(ad) {
-  const text = normalizeText(`${ad.client} ${ad.allocationName || ""} ${ad.industry} ${ad.appeal} ${ad.memo}`);
+  const text = normalizeText(`${ad.client} ${ad.allocationName || ""} ${ad.industry} ${ad.businessType || ""} ${ad.productCategory || ""} ${ad.appeal} ${ad.memo}`);
   if (/製紙|紙パルプ|紙業|パルプ/.test(text)) return { key: "paper", label: "似たような製紙会社・紙業系の広告が近い日付内にあります" };
   if (/公明|写真で読む|グラフ|党出版物|月刊|潮|中央公論|書店|出版|電子版|gサーチ|gsearch/.test(text)) return { key: "publishing", label: "公明関連・出版・記事検索系の訴求が近い組み合わせです" };
-  if (/イクハク|子育|子ども|こども|kids|unhcr|支援/.test(text)) return { key: "children", label: "子育て・子ども支援テーマが近い組み合わせです" };
+  if (/学習支援|教育機会|子どもの貧困|kids|キッズドア/.test(text)) return { key: "children-education", label: "子どもの教育・学習支援テーマが近い組み合わせです" };
+  if (/イクハク|子育て支援制度|妊娠|自治体支援/.test(text)) return { key: "parenting-info", label: "妊娠・子育て家庭向けの支援制度情報テーマが近い組み合わせです" };
   if (/建設|工業社|冷熱|熱学|熱工業|関電工|トーエネック|ユアテック|エンジニア|電工|設備/.test(text)) return { key: "construction", label: "建設・設備・エンジニアリング系の広告が近い組み合わせです" };
-  if (/夢g|フローラ|ヤマダ|がくぶん|通販|健康食品|高圧洗浄機/.test(text)) return { key: "retail", label: "通販・直販系の広告が近い組み合わせです" };
+  if (/夢g|高圧洗浄機|電動工具|園芸|diy|清掃用品/.test(text)) return { key: "retail-tools", label: "通販の中でも園芸・DIY・清掃用品系の広告が近い組み合わせです" };
+  if (/フローラ|健康食品|黒にんにく|サプリ/.test(text)) return { key: "retail-health-food", label: "通販の中でも健康食品・サプリ系の広告が近い組み合わせです" };
   return null;
 }
 
@@ -1098,7 +1152,7 @@ function renderPagePreview(page) {
           ${page.ads.map(ad => `
             <span class="ad-chip">
               ${escapeHtml(ad.client || ad.allocationName || "広告主未入力")}
-              <small>${escapeHtml(ad.appeal || ad.slot || "")}</small>
+              <small>${escapeHtml(compactAdDetail(ad))}</small>
             </span>
           `).join("")}
         </div>
@@ -1175,6 +1229,14 @@ function renderAdEditor(ad, page) {
           訴求内容
           <input value="${escapeHtml(ad.appeal)}" data-field="appeal" data-ad-id="${ad.id}" placeholder="健康、相続、講座、寄付など">
         </label>
+        <label>
+          業態
+          <input value="${escapeHtml(ad.businessType || "")}" data-field="businessType" data-ad-id="${ad.id}" placeholder="例: 健康食品通販、設備工事会社">
+        </label>
+        <label>
+          商品カテゴリ
+          <input value="${escapeHtml(ad.productCategory || "")}" data-field="productCategory" data-ad-id="${ad.id}" placeholder="例: 黒にんにく、電動工具">
+        </label>
         <label class="full">
           OCR本文・広告文
           <textarea rows="3" data-field="ocrText" data-ad-id="${ad.id}" placeholder="OCR結果や広告本文を貼り付け">${escapeHtml(ad.ocrText)}</textarea>
@@ -1204,7 +1266,7 @@ function renderAllocationNote(ad) {
 function renderAnalysis() {
   const rows = collectAds().filter(ad => ad.date === state.selectedDate);
   if (!rows.length) {
-    els.analysisTable.innerHTML = `<tr><td colspan="6">分析対象の広告枠がありません。</td></tr>`;
+    els.analysisTable.innerHTML = `<tr><td colspan="7">分析対象の広告枠がありません。</td></tr>`;
     els.alertBox.classList.remove("is-visible");
     els.alertBox.textContent = "";
     return;
@@ -1219,6 +1281,7 @@ function renderAnalysis() {
           <td><span class="verdict ${verdictClass(ad.verdict)}">${ad.verdict || "△"}</span></td>
           <td>${escapeHtml(ad.client || "未入力")}</td>
           <td>${escapeHtml(ad.industry || "未分類")}</td>
+          <td>${escapeHtml(ad.businessType || ad.productCategory || "未入力")}</td>
           <td>${escapeHtml(ad.appeal || summarizeText(ad.ocrText) || "未入力")}</td>
           <td>${escapeHtml(ad.pdfName)}<br>${page ? escapeHtml(page.faceName) : `${ad.pageNumber}面`} / ${escapeHtml(ad.slot)}</td>
           <td>${escapeHtml(ad.reason || "未分析")}</td>
@@ -1236,6 +1299,11 @@ function renderAnalysis() {
     els.alertBox.classList.remove("is-visible");
     els.alertBox.textContent = "";
   }
+}
+
+function compactAdDetail(ad) {
+  const details = [ad.productCategory || ad.businessType, ad.appeal || ad.slot].filter(Boolean);
+  return details.join(" / ");
 }
 
 function collectAds() {
@@ -1326,7 +1394,7 @@ function findAd(adId) {
 }
 
 function inferIndustry(ad) {
-  const text = normalizeText(`${ad.client} ${ad.appeal} ${ad.ocrText} ${ad.memo}`);
+  const text = normalizeText(`${ad.client} ${ad.businessType || ""} ${ad.productCategory || ""} ${ad.appeal} ${ad.ocrText} ${ad.memo}`);
   const rules = [
     ["医療・健康", ["健康", "医療", "病院", "薬", "痛み", "サプリ", "介護", "検診"]],
     ["金融・保険", ["保険", "相続", "投資", "年金", "ローン", "銀行", "資産"]],
@@ -1345,13 +1413,13 @@ function inferIndustry(ad) {
 }
 
 function inferAppeal(ad) {
-  const text = normalizeText(`${ad.client} ${ad.appeal} ${ad.ocrText} ${ad.memo}`);
+  const text = normalizeText(`${ad.client} ${ad.businessType || ""} ${ad.productCategory || ""} ${ad.appeal} ${ad.ocrText} ${ad.memo}`);
   const keywords = ["健康", "相続", "安心", "無料", "講座", "通販", "相談", "予防", "葬儀", "旅行", "出版", "寄付"];
   return keywords.filter(keyword => text.includes(keyword)).slice(0, 3).join("、");
 }
 
 function overlapKeywords(a, b) {
-  const keywords = ["健康", "痛み", "相続", "保険", "相談", "無料", "寄付", "葬儀", "講座", "旅行", "出版", "通販", "安心"];
+  const keywords = ["健康", "痛み", "相続", "保険", "相談", "無料", "寄付", "葬儀", "講座", "旅行", "出版", "通販", "安心", "黒にんにく", "電動工具", "高圧洗浄機", "子育て支援制度", "学習支援"];
   return keywords.some(keyword => normalizeText(a).includes(keyword) && normalizeText(b).includes(keyword));
 }
 
@@ -1518,6 +1586,7 @@ function buildAlertBody(alerts) {
         `位置: ${page ? page.faceName : `${ad.pageNumber}面`} / ${ad.slot}`,
         `広告主: ${ad.client || "未入力"}`,
         `業種: ${ad.industry || "未分類"}`,
+        `業態・商品: ${ad.businessType || ad.productCategory || "未入力"}`,
         `訴求: ${ad.appeal || summarizeText(ad.ocrText) || "未入力"}`,
         `理由: ${ad.reason || "未分析"}`
       ].join("\n");
@@ -1539,7 +1608,7 @@ async function copyCodexPrompt() {
     "広告枠:",
     ...ads.map(ad => {
       const page = findPage(ad.pageId);
-      return `- ${ad.verdict || "未判定"} ${ad.pdfName} ${page ? page.faceName : `${ad.pageNumber}面`} ${ad.slot} / 広告主=${ad.client || "未入力"} / 業種=${ad.industry || "未分類"} / 訴求=${ad.appeal || summarizeText(ad.ocrText) || "未入力"} / 理由=${ad.reason || "未分析"}`;
+      return `- ${ad.verdict || "未判定"} ${ad.pdfName} ${page ? page.faceName : `${ad.pageNumber}面`} ${ad.slot} / 広告主=${ad.client || "未入力"} / 業種=${ad.industry || "未分類"} / 業態・商品=${ad.businessType || ad.productCategory || "未入力"} / 訴求=${ad.appeal || summarizeText(ad.ocrText) || "未入力"} / 理由=${ad.reason || "未分析"}`;
     }),
     "",
     "過去目視フィードバック:",
