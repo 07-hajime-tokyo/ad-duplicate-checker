@@ -553,6 +553,7 @@ function updateSidebarVisibility() {
   els.togglePaperSidebar.setAttribute("aria-expanded", String(state.showPaperSidebar));
   els.toggleControlSidebar.textContent = state.showControlSidebar ? "操作を隠す" : "操作";
   els.togglePaperSidebar.textContent = state.showPaperSidebar ? "紙面を隠す" : "紙面";
+  applySidebarWidths();
 }
 
 function bindSidebarResizers() {
@@ -611,9 +612,11 @@ function availableSidebarMax(target, min, hardMax) {
   if (window.matchMedia("(max-width: 1240px)").matches) return hardMax;
   const shellWidth = els.appShell?.getBoundingClientRect().width || window.innerWidth - 32;
   const otherTarget = target === "paper" ? "control" : "paper";
-  const otherWidth = state.sidebarWidths[otherTarget] || defaultSidebarWidth(otherTarget);
+  const otherVisible = otherTarget === "paper" ? state.showPaperSidebar : state.showControlSidebar;
+  const otherWidth = otherVisible ? state.sidebarWidths[otherTarget] || defaultSidebarWidth(otherTarget) : 0;
   const reservedMainWidth = 560;
-  const gridGaps = 24;
+  const visibleSidebarCount = Number(state.showControlSidebar) + Number(state.showPaperSidebar);
+  const gridGaps = Math.max(0, visibleSidebarCount) * 12;
   const available = shellWidth - otherWidth - reservedMainWidth - gridGaps;
   return Math.max(min, Math.min(hardMax, available));
 }

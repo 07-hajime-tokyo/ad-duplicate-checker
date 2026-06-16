@@ -81,11 +81,13 @@ main,
     minmax(0, var(--control-sidebar-width))
     minmax(0, 1fr)
     minmax(0, var(--paper-sidebar-width));
+  grid-template-areas: "control main paper";
   gap: 12px;
   align-items: start;
 }
 
 .main-content {
+  grid-area: main;
   display: grid;
   gap: 12px;
   min-width: 0;
@@ -103,15 +105,32 @@ main,
 }
 
 .control-sidebar {
+  grid-area: control;
   width: var(--control-sidebar-width);
   min-width: 240px;
   max-width: 520px;
 }
 
 .paper-sidebar {
+  grid-area: paper;
   width: var(--paper-sidebar-width);
   min-width: 300px;
   max-width: 760px;
+}
+
+.control-sidebar-hidden .app-shell {
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--paper-sidebar-width));
+  grid-template-areas: "main paper";
+}
+
+.paper-sidebar-hidden .app-shell {
+  grid-template-columns: minmax(0, var(--control-sidebar-width)) minmax(0, 1fr);
+  grid-template-areas: "control main";
+}
+
+.control-sidebar-hidden.paper-sidebar-hidden .app-shell {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "main";
 }
 
 .sidebar-resizer {
@@ -1228,6 +1247,29 @@ tr:last-child td {
 @media (max-width: 1240px) {
   .app-shell {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "main"
+      "control"
+      "paper";
+  }
+
+  .control-sidebar-hidden .app-shell {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "main"
+      "paper";
+  }
+
+  .paper-sidebar-hidden .app-shell {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "main"
+      "control";
+  }
+
+  .control-sidebar-hidden.paper-sidebar-hidden .app-shell {
+    grid-template-columns: 1fr;
+    grid-template-areas: "main";
   }
 
   .sidebar {
